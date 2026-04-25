@@ -84,6 +84,24 @@ def get_recommendations(db: Session, user_id: int, top_k=20):
     return movies
 
 
+def get_user_history(db, user_id, limit=5):
+    from app.models.event import Event
+    from app.models.movie import Movie
+
+    events = (
+        db.query(Event)
+        .filter(Event.user_id == user_id)
+        .order_by(Event.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    movie_ids = [e.movie_id for e in events]
+
+    movies = db.query(Movie).filter(Movie.id.in_(movie_ids)).all()
+
+    return [m.title for m in movies]
+
 def get_recently_watched(db, user_id, limit=5):
     events = (
         db.query(Event)

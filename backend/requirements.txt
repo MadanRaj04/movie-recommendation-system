@@ -13,4 +13,4 @@ sentence-transformers
 numpy
 requests
 langchain
-langchain-community
+langchain-ollama

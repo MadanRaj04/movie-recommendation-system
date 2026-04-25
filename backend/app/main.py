@@ -3,10 +3,13 @@ from app.api.routes import movies, recommendations, events, auth
 from app.core.database import Base, engine
 from app.models import user, movie, event, user_profile
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.routes import chat
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Movie Recommendation System")
+app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 
 app.add_middleware(
     CORSMiddleware,
