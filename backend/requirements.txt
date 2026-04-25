@@ -8,3 +8,7 @@ python-jose
 redis
 numpy
 scikit-learn
+faiss-cpu
+sentence-transformers
+numpy
+requests
