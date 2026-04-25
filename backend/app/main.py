@@ -2,12 +2,22 @@ from fastapi import FastAPI
 from app.api.routes import movies, recommendations, events, auth
 from app.core.database import Base, engine
 from app.models import user, movie, event, user_profile
-
+from fastapi.middleware.cors import CORSMiddleware
 # Create tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Movie Recommendation System")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Include routes
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(movies.router, prefix="/movies", tags=["Movies"])
