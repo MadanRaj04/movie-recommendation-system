@@ -19,57 +19,70 @@ def get_embedding(text):
     return response.json()["embedding"]
 
 
-def get_weight(event_type):
-    return {
-        "click": 0.2,
-        "play": 0.5,
-        "watch": 1.0
-    }.get(event_type, 0.1)
+# How much each interaction type contributes to the user vector.
+# watch=1.0 so completing a movie strongly reinforces that direction;
+# click=0.2 is a weak signal. 4 milestones × 1.0 = 4.0 total per watched movie,
+# which is intentional: watched movies dominate over casual clicks.
+EVENT_WEIGHTS = {
+    "click": 0.2,
+    "play":  0.5,
+    "watch": 1.0,
+}
 
 
 def update_user_profile(db: Session, user_id: int, movie_text: str, weight: float):
-    embedding = np.array(get_embedding(movie_text), dtype=np.float32)
+    movie_emb = np.array(get_embedding(movie_text), dtype=np.float32)
+
+    # Normalize the incoming movie embedding to unit vector
+    movie_norm = np.linalg.norm(movie_emb)
+    if movie_norm > 0:
+        movie_emb = movie_emb / movie_norm
 
     profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
 
     if profile:
-        user_vec = np.frombuffer(profile.embedding, dtype=np.float32)
-        user_vec = user_vec + weight * embedding
+        user_vec = np.frombuffer(profile.embedding, dtype=np.float32).copy()
+        # Weighted accumulation: add the event's contribution to the running sum.
+        # This is equivalent to computing a weighted centroid in embedding space.
+        # Multiple horror movie events all push in the same direction, reinforcing it.
+        # The subsequent normalization keeps it as a unit vector for FAISS.
+        user_vec = user_vec + weight * movie_emb
     else:
-        user_vec = weight * embedding
+        user_vec = weight * movie_emb
 
-    profile = UserProfile(
+    # Always L2-normalize so FAISS IndexFlatIP == cosine similarity
+    vec_norm = np.linalg.norm(user_vec)
+    if vec_norm > 0:
+        user_vec = user_vec / vec_norm
+
+    db.merge(UserProfile(
         user_id=user_id,
         embedding=user_vec.astype(np.float32).tobytes()
-    )
-
-    db.merge(profile)
+    ))
     db.commit()
 
 
 def worker():
     print("🚀 Worker started...")
-
     db = SessionLocal()
 
     while True:
         event = get_event()
 
-        user_id = event["user_id"]
-        movie_id = event["movie_id"]
+        user_id    = event["user_id"]
+        movie_id   = event["movie_id"]
         event_type = event["event_type"]
 
         movie = db.query(Movie).filter(Movie.id == movie_id).first()
         if not movie:
+            print(f"⚠️  movie_id={movie_id} not in DB — skipping")
             continue
 
-        text = f"{movie.title} {movie.overview} {movie.genres}"
-
-        weight = get_weight(event_type)
+        text   = f"{movie.title} {movie.overview} {movie.genres}"
+        weight = EVENT_WEIGHTS.get(event_type, 0.1)
 
         update_user_profile(db, user_id, text, weight)
-
-        print(f"Updated user {user_id} profile")
+        print(f"✅ User {user_id} ← {event_type} '{movie.title}' (w={weight})")
 
 
 if __name__ == "__main__":

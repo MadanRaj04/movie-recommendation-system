@@ -13,7 +13,7 @@ def recommend(user_id: int, db: Session = Depends(get_db)):
 
     movie_titles = [m.title for m in movies]
 
-    explanation = generate_explanation(history, movie_titles)
+    #explanation = generate_explanation(history, movie_titles)
 
     return {
         "recommendations": [
@@ -24,5 +24,5 @@ def recommend(user_id: int, db: Session = Depends(get_db)):
             }
             for m in movies
         ],
-        "explanation": explanation
+        #"explanation": explanation
     }

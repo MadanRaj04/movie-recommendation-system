@@ -8,18 +8,11 @@ from app.models.user_profile import UserProfile
 from app.models.event import Event
 
 
-def get_watched_movie_ids(db, user_id):
-    events = db.query(Event.movie_id).filter(Event.user_id == user_id).all()
-    return set([e[0] for e in events])
-
-
-
-
-# Load FAISS
-index = faiss.read_index("vector_db/faiss_index/movies.index")
+# ── FAISS index ──────────────────────────────────────────────────────────────
+index    = faiss.read_index("vector_db/faiss_index/movies.index")
 movie_ids = np.load("vector_db/faiss_index/movie_ids.npy")
 
-# Ollama config
+# ── Ollama ───────────────────────────────────────────────────────────────────
 OLLAMA_URL = "http://localhost:11434/api/embeddings"
 MODEL_NAME = "nomic-embed-text"
 
@@ -31,63 +24,85 @@ def get_embedding(text):
     )
     return response.json()["embedding"]
 
+
 def get_user_vector(db: Session, user_id: int):
     profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-
     if profile is None:
         return None
+    return np.frombuffer(profile.embedding, dtype=np.float32).copy()
 
-    return np.frombuffer(profile.embedding, dtype=np.float32)
 
-def get_default_recommendations(db: Session, limit=10):
-    movies = db.query(Movie).order_by(Movie.popularity.desc()).limit(limit).all()
-    return movies
+def get_default_recommendations(db: Session, limit: int = 10):
+    return db.query(Movie).order_by(Movie.popularity.desc()).limit(limit).all()
 
-def get_recommendations(db: Session, user_id: int, top_k=20):
+
+def get_watched_movie_ids(db: Session, user_id: int):
+    """
+    Only exclude movies the user has *played or watched* — not mere clicks.
+    This way clicking many movies in the genre rows won't collapse the rec pool.
+    """
+    events = (
+        db.query(Event.movie_id)
+        .filter(
+            Event.user_id == user_id,
+            Event.event_type.in_(["play", "watch"])
+        )
+        .distinct()
+        .all()
+    )
+    return set(e[0] for e in events)
+
+
+def get_recommendations(db: Session, user_id: int, top_k: int = 150):
     user_vector = get_user_vector(db, user_id)
 
-    # Cold start
+    # ── Cold start ────────────────────────────────────────────────────────────
     if user_vector is None:
         return get_default_recommendations(db)
 
-    user_vector = np.array([user_vector]).astype("float32")
+    # Normalize before FAISS search (IndexFlatIP == cosine sim for unit vecs)
+    user_vector = user_vector.astype("float32").reshape(1, -1)
     faiss.normalize_L2(user_vector)
 
+    # Search larger candidate pool so filtering doesn't empty the list
     scores, indices = index.search(user_vector, top_k)
 
     watched_ids = get_watched_movie_ids(db, user_id)
 
-    recent_ids = get_recently_watched(db, user_id)
-
-    boost_set = set(recent_ids)
-
     recommended_ids = []
-
-
-    for i in indices[0]:
-        movie_id = int(movie_ids[i])
-
-        if movie_id in watched_ids:
+    for idx in indices[0]:
+        if idx < 0:          # FAISS pads with -1 when index is smaller than top_k
             continue
-
-        # Boost recent-style movies
-        if movie_id in boost_set:
-            recommended_ids.insert(0, movie_id)
-        else:
+        movie_id = int(movie_ids[idx])
+        if movie_id not in watched_ids:
             recommended_ids.append(movie_id)
-
         if len(recommended_ids) >= 10:
             break
 
+    # ── Fallback: if too many watched, relax the filter ───────────────────────
+    if len(recommended_ids) < 5:
+        # Re-scan with no watch filter — just give top results
+        recommended_ids = []
+        for idx in indices[0]:
+            if idx < 0:
+                continue
+            recommended_ids.append(int(movie_ids[idx]))
+            if len(recommended_ids) >= 10:
+                break
+
+    if not recommended_ids:
+        return get_default_recommendations(db)
+
     movies = db.query(Movie).filter(Movie.id.in_(recommended_ids)).all()
+
+    # Preserve FAISS ranking order
+    order_map = {mid: pos for pos, mid in enumerate(recommended_ids)}
+    movies.sort(key=lambda m: order_map.get(m.id, 999))
 
     return movies
 
 
-def get_user_history(db, user_id, limit=5):
-    from app.models.event import Event
-    from app.models.movie import Movie
-
+def get_user_history(db: Session, user_id: int, limit: int = 5):
     events = (
         db.query(Event)
         .filter(Event.user_id == user_id)
@@ -95,14 +110,12 @@ def get_user_history(db, user_id, limit=5):
         .limit(limit)
         .all()
     )
-
-    movie_ids = [e.movie_id for e in events]
-
-    movies = db.query(Movie).filter(Movie.id.in_(movie_ids)).all()
-
+    ids    = [e.movie_id for e in events]
+    movies = db.query(Movie).filter(Movie.id.in_(ids)).all()
     return [m.title for m in movies]
 
-def get_recently_watched(db, user_id, limit=5):
+
+def get_recently_watched(db: Session, user_id: int, limit: int = 5):
     events = (
         db.query(Event)
         .filter(Event.user_id == user_id)
@@ -110,5 +123,4 @@ def get_recently_watched(db, user_id, limit=5):
         .limit(limit)
         .all()
     )
-
     return [e.movie_id for e in events]

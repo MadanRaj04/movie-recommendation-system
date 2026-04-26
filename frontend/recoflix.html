@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RecoFlix — AI Movie Recommendations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--red:#E50914;--dark:#080808;--card:#111;--surface:#181818;--border:rgba(255,255,255,0.08);--text:#e5e5e5;--muted:#888;--font:'Outfit',sans-serif}
+html,body{height:100%;overflow-x:hidden}
+body{background:var(--dark);color:var(--text);font-family:var(--font)}
+::-webkit-scrollbar{display:none}
+*{scrollbar-width:none}
+input,button,textarea{font-family:var(--font)}
+button{cursor:pointer}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.skeleton{background:linear-gradient(90deg,#1a1a1a 25%,#252525 50%,#1a1a1a 75%);background-size:400px 100%;animation:shimmer 1.4s infinite}
+.fade-up{animation:fadeUp 0.5s ease forwards}
+.fade-in{animation:fadeIn 0.3s ease forwards}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+// ─── MOVIE DATA ───────────────────────────────────────────────────────────────
+const MOVIES_BY_GENRE = {"Action":[{"tmdb_id":"1613798","title":"Vengeance","overview":"The brutal murder of the wife of \u201cToro,\u201d a military hero in the special forces, turns him into a man with a single purpose: revenge. After a stroke of fate makes him a millionaire,","runtime":103,"rating":6.7,"genres":["Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/ygWXPL0RS91JyJPNOfK34eV3bRE.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jJmlCFi5EjpH5vHmOczRiVDm0qS.jpg","cast":["Omar Chaparro","Alejandro Speitzer","Paola Nu\u00f1ez"],"director":"Rodrigo Valdes","release_year":2026,"content_rating":null},{"tmdb_id":"1290821","title":"Shelter","overview":"A man living in self-imposed exile on a remote island rescues a young girl from a violent storm, setting off a chain of events that forces him out of seclusion to protect her from ","runtime":107,"rating":6.8,"genres":["Action","Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/buPFnHZ3xQy6vZEHxbHgL1Pc6CR.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/nHxWyy18SvAZ8jJeemtS8k1UNjM.jpg","cast":["Jason Statham","Bodhi Rae Breathnach","Naomi Ackie"],"director":"Ric Roman Waugh","release_year":2026,"content_rating":"R"},{"tmdb_id":"1084577","title":"Balls Up","overview":"Two marketing executives go \"balls out\" and pitch a bold full\u2011coverage condom sponsorship with the World Cup. After their drunken celebration in Brazil sparks a global scandal, the","runtime":104,"rating":5.7,"genres":["Comedy","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/xwvJ3WzdJ1OCuDoY8LAxBUlQyig.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jRsjWwZzI39bTm44FNhRtiICd9k.jpg","cast":["Mark Wahlberg","Paul Walter Hauser","Sacha Baron Cohen"],"director":"Peter Farrelly","release_year":2026,"content_rating":"R"},{"tmdb_id":"1641319","title":"Sniper: No Nation","overview":"Brandon Beckett and Agent Zero lead a rescue mission in Venezuela when their friends are taken hostage.","runtime":96,"rating":6.2,"genres":["Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/tUmARo0TZEK1EaSuS6dU35FhDyU.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7lizs4SuEU2ihkkAa0SZ66NtHbl.jpg","cast":["Chad Michael Collins","Ryan Robbins","Manuel Rodriguez-Saenz"],"director":"Trevor Calverley","release_year":2026,"content_rating":"R"},{"tmdb_id":"1311031","title":"Demon Slayer: Kimetsu no Yaiba Infinity Castle","overview":"The Demon Slayer Corps are drawn into the Infinity Castle, where Tanjiro, Nezuko, and the Hashira face terrifying Upper Rank demons in a desperate fight as the final battle against","runtime":156,"rating":7.7,"genres":["Animation","Action","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/fWVSwgjpT2D78VUh6X8UBd2rorW.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1RgPyOhN4DRs225BGTlHJqCudII.jpg","cast":["Natsuki Hanae","Takahiro Sakurai","Akira Ishida"],"director":"Haruo Sotozaki","release_year":2025,"content_rating":"R"},{"tmdb_id":"1419406","title":"The Shadow's Edge","overview":"Macau Police brings the tracking expert police officer out of retirement to help catch a dangerous group of professional thieves.","runtime":142,"rating":7.2,"genres":["Action","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/e0RU6KpdnrqFxDKlI3NOqN8nHL6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/4BtL2vvEufDXDP4u6xQjjQ1Y2aT.jpg","cast":["Jackie Chan","Zhang Zifeng","Tony Leung Ka-fai"],"director":"Larry Yang","release_year":2025,"content_rating":"NR"},{"tmdb_id":"1265609","title":"War Machine","overview":"On one last grueling mission during Army Ranger training, a combat engineer must lead his unit in a fight against a giant otherworldly killing machine.","runtime":110,"rating":7.2,"genres":["Action","Science Fiction","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/yWBs5mZcfLf777Cn3BNc3nQYgVK.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/6yeVcxFR0j08vlv2OlL6zbewm4D.jpg","cast":["Alan Ritchson","Dennis Quaid","Stephan James"],"director":"Patrick Hughes","release_year":2026,"content_rating":"R"},{"tmdb_id":"1084187","title":"Pretty Lethal","overview":"A troupe of ballerinas find themselves fighting for survival as they attempt to escape from a remote inn after their bus breaks down on the way to a dance competition.","runtime":89,"rating":6.8,"genres":["Music","Thriller","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/znTPnXCK3lEQJgqXCvP7e5FUz6f.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/z3bzhmC0CPikWeerUkLO73YvGrC.jpg","cast":["Maddie Ziegler","Lana Condor","Iris Apatow"],"director":"Vicky Jewson","release_year":2026,"content_rating":"R"},{"tmdb_id":"634649","title":"Spider-Man: No Way Home","overview":"Peter Parker is unmasked and no longer able to separate his normal life from the high-stakes of being a super-hero. When he asks for help from Doctor Strange the stakes become even","runtime":148,"rating":7.9,"genres":["Action","Adventure","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zD5v1E4joAzFvmAEytt7fM3ivyT.jpg","cast":["Tom Holland","Zendaya","Benedict Cumberbatch"],"director":"Jon Watts","release_year":2021,"content_rating":"PG-13"},{"tmdb_id":"662707","title":"Starbright","overview":"A young woman becomes the guardian of a fallen star, which she must protect from dangerous forces with the help of a brave stranger.","runtime":148,"rating":7.0,"genres":["Adventure","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/m1Zl07DNYeSyNcz9hf8hDsS2oB5.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tZiRd4IpoNiaoLXr2o2YfhTMjE2.jpg","cast":["John Rhys-Davies","Ted Levine","Elisabeth R\u00f6hm"],"director":"Francesco Lucente","release_year":2026,"content_rating":null},{"tmdb_id":"1268127","title":"Humint","overview":"A South Korean agent hunts a drug ring in Russia and goes head-to-head with a North Korean operative \u2014 pulling both into peril and tangled secrets.","runtime":120,"rating":7.2,"genres":["Thriller","Action","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/82bX2GK4PhaJQtfkTnfmd2P7erG.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/5KFThZkdBEQkp9gPWWWNb5CI5yD.jpg","cast":["Zo In-sung","Park Jeong-min","Park Hae-joon"],"director":"Ryoo Seung-wan","release_year":2026,"content_rating":null},{"tmdb_id":"7451","title":"xXx","overview":"Xander Cage is your standard adrenaline junkie with no fear and a lousy attitude. When the US Government \"recruits\" him to go on a mission, he's not exactly thrilled. His mission: ","runtime":124,"rating":6.0,"genres":["Action","Adventure","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/xeEw3eLeSFmJgXZzmF2Efww0q3s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2OHa6ukEq3Hce7Pc2kvu8wkmMFY.jpg","cast":["Vin Diesel","Asia Argento","Marton Csokas"],"director":"Rob Cohen","release_year":2002,"content_rating":"PG-13"},{"tmdb_id":"24428","title":"The Avengers","overview":"When an unexpected enemy emerges and threatens global safety and security, Nick Fury, director of the international peacekeeping agency known as S.H.I.E.L.D., finds himself in need","runtime":143,"rating":8.0,"genres":["Science Fiction","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg","cast":["Robert Downey Jr.","Chris Evans","Mark Ruffalo"],"director":"Joss Whedon","release_year":2012,"content_rating":"PG-13"},{"tmdb_id":"1242898","title":"Predator: Badlands","overview":"Cast out from his clan, a young Predator finds an unlikely ally in a damaged android and embarks on a treacherous journey in search of the ultimate adversary.","runtime":107,"rating":7.7,"genres":["Action","Science Fiction","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/erTRAi241eYF4K8KoGGOI8kFPox.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/82lM4GJ9uuNvNDOEpxFy77uv4Ak.jpg","cast":["Elle Fanning","Dimitrius Schuster-Koloamatangi","Ravi Narayan"],"director":"Dan Trachtenberg","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"1168190","title":"The Wrecking Crew","overview":"Estranged half-brothers Jonny and James reunite after their father's mysterious death. As they search for the truth, buried secrets reveal a conspiracy threatening to tear their fa","runtime":125,"rating":6.9,"genres":["Action","Comedy","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/gbVwHl4YPSq6BcC92TQpe7qUTh6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/cz4vLJrmaV1zJlRYbxqtvLzeLWB.jpg","cast":["Dave Bautista","Jason Momoa","Temuera Morrison"],"director":"\u00c1ngel Manuel Soto","release_year":2026,"content_rating":"R"},{"tmdb_id":"299536","title":"Avengers: Infinity War","overview":"As the Avengers and their allies have continued to protect the world from threats too large for any one hero to handle, a new danger has emerged from the cosmic shadows: Thanos. A ","runtime":149,"rating":8.2,"genres":["Adventure","Action","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg","cast":["Robert Downey Jr.","Chris Evans","Chris Hemsworth"],"director":"Anthony Russo","release_year":2018,"content_rating":"PG-13"},{"tmdb_id":"1110034","title":"Kraken","overview":"Marine biologist Johanne is doing research on a fish farm in Vangsnes, a rural community located by the fjord, when she encounters several strange occurrences. Along with the bruta","runtime":94,"rating":6.0,"genres":["Horror","Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/jVsflOu9WpMqUJ3WwVX2mITi86S.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/xcBlMEvzuaHoWANKYn5PGvcW4OC.jpg","cast":["Sara Khorami","Mikkel Bratt Silset","Ingvild Holthe Bygdnes"],"director":"P\u00e5l \u00d8ie","release_year":2026,"content_rating":null},{"tmdb_id":"1088434","title":"Hellfire","overview":"A drifter with a mysterious past arrives in a small town and finds the residents in the grip of a ruthless crime boss and realizes he has to help them.","runtime":94,"rating":6.8,"genres":["Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/tQti9QTf13MfzNpXguijgNh7ojE.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/fyv3Cmsdq4pfiKU6M3azRATwBBU.jpg","cast":["Stephen Lang","Harvey Keitel","Scottie Thompson"],"director":"Isaac Florentine","release_year":2026,"content_rating":"R"},{"tmdb_id":"1236153","title":"Mercy","overview":"In the near future, a detective stands on trial accused of murdering his wife. He has ninety minutes to prove his innocence to the advanced AI Judge he once championed, before it d","runtime":99,"rating":7.0,"genres":["Science Fiction","Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/pyok1kZJCfyuFapYXzHcy7BLlQa.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/po1niVuud0tX86xOFegO5omQ2wX.jpg","cast":["Chris Pratt","Rebecca Ferguson","Kali Reis"],"director":"Timur Bekmambetov","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1234821","title":"Jurassic World Rebirth","overview":"Five years after the events of Jurassic World Dominion, covert operations expert Zora Bennett is contracted to lead a skilled team on a top-secret mission to secure genetic materia","runtime":134,"rating":6.3,"genres":["Science Fiction","Adventure","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/1RICxzeoNCAO5NpcRMIgg1XT6fm.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zNriRTr0kWwyaXPzdg1EIxf0BWk.jpg","cast":["Scarlett Johansson","Mahershala Ali","Jonathan Bailey"],"director":"Gareth Edwards","release_year":2025,"content_rating":"PG-13"}],"Comedy":[{"tmdb_id":"1226863","title":"The Super Mario Galaxy Movie","overview":"Having thwarted Bowser's previous plot to marry Princess Peach, Mario and Luigi now face a fresh threat in Bowser Jr., who is determined to liberate his father from captivity and r","runtime":98,"rating":6.8,"genres":["Family","Comedy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/eJGWx219ZcEMVQJhAgMiqo8tYY.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/kxQiIJ4gVcD3K6o14MJ72p5yRcE.jpg","cast":["Chris Pratt","Charlie Day","Anya Taylor-Joy"],"director":"Aaron Horvath","release_year":2026,"content_rating":"PG"},{"tmdb_id":"1198994","title":"Send Help","overview":"Two colleagues become stranded on a deserted island, the only survivors of a plane crash. On the island, they must overcome past grievances and work together to survive, but ultima","runtime":113,"rating":7.0,"genres":["Horror","Thriller","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/mjkS2iAgWj3ik1DTjvI15nHZ7yl.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/gCmfeKmEAZBP5gcXpiqb0gii9rS.jpg","cast":["Rachel McAdams","Dylan O'Brien","Edyll Ismail"],"director":"Sam Raimi","release_year":2026,"content_rating":"R"},{"tmdb_id":"1327819","title":"Hoppers","overview":"Scientists have discovered how to 'hop' human consciousness into lifelike robotic animals, allowing people to communicate with animals as animals. Animal lover Mabel seizes an oppo","runtime":105,"rating":7.6,"genres":["Animation","Family","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/xjtWQ2CL1mpmMNwuU5HeS4Iuwuu.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/u53UYu5XG2hNgWGvs3xGhAVzypl.jpg","cast":["Piper Curda","Bobby Moynihan","Jon Hamm"],"director":"Daniel Chong","release_year":2026,"content_rating":"PG"},{"tmdb_id":"1084577","title":"Balls Up","overview":"Two marketing executives go \"balls out\" and pitch a bold full\u2011coverage condom sponsorship with the World Cup. After their drunken celebration in Brazil sparks a global scandal, the","runtime":104,"rating":5.7,"genres":["Comedy","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/xwvJ3WzdJ1OCuDoY8LAxBUlQyig.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jRsjWwZzI39bTm44FNhRtiICd9k.jpg","cast":["Mark Wahlberg","Paul Walter Hauser","Sacha Baron Cohen"],"director":"Peter Farrelly","release_year":2026,"content_rating":"R"},{"tmdb_id":"1297842","title":"GOAT","overview":"A small goat with big dreams gets a once-in-a-lifetime shot to join the pros and play roarball, a high-intensity, co-ed, full-contact sport dominated by the fastest, fiercest anima","runtime":100,"rating":7.9,"genres":["Animation","Comedy","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/wfuqMlaExcoYiUEvKfVpUTt1v4u.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tq3h43fZy0H80vzf47MAY7R9Mxo.jpg","cast":["Caleb McLaughlin","Gabrielle Union","Stephen Curry"],"director":"Tyree Dillihay","release_year":2026,"content_rating":"PG"},{"tmdb_id":"502356","title":"The Super Mario Bros. Movie","overview":"While working underground to fix a water main, Brooklyn plumbers\u2014and brothers\u2014Mario and Luigi are transported down a mysterious pipe and wander into a magical new world. But when t","runtime":93,"rating":7.6,"genres":["Family","Comedy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9n2tJBplPbgR2ca05hS5CKXwP2c.jpg","cast":["Chris Pratt","Anya Taylor-Joy","Charlie Day"],"director":"Michael Jelenic","release_year":2023,"content_rating":"PG"},{"tmdb_id":"1084242","title":"Zootopia 2","overview":"After cracking the biggest case in Zootopia's history, rookie cops Judy Hopps and Nick Wilde find themselves on the twisting trail of a great mystery when Gary De'Snake arrives and","runtime":108,"rating":7.6,"genres":["Animation","Family","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/oJ7g2CifqpStmoYQyaLQgEU32qO.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/lgotja3xMoJZbynwHfcQcJAEMWH.jpg","cast":["Ginnifer Goodwin","Jason Bateman","Ke Huy Quan"],"director":"Jared Bush","release_year":2025,"content_rating":"PG"},{"tmdb_id":"350","title":"The Devil Wears Prada","overview":"A young woman from the Midwest gets more than she bargained for when she moves to New York to become a writer and ends up as the assistant to the tyrannical, larger-than-life edito","runtime":109,"rating":7.4,"genres":["Drama","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/8912AsVuS7Sj915apArUFbv6F9L.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/CpLAfXgSNeNRRbRzPrTuzKmIHO.jpg","cast":["Meryl Streep","Anne Hathaway","Emily Blunt"],"director":"David Frankel","release_year":2006,"content_rating":"PG-13"},{"tmdb_id":"848116","title":"Rocky Aur Rani Kii Prem Kahaani","overview":"Gym-freak brat Rocky falls in love with Rani, who comes from a well-educated Bengali family. Being from polar opposite worlds, the two decide to switch their families to adjust to ","runtime":179,"rating":6.1,"genres":["Comedy","Drama","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/vTQIqlxUkOuyf2UKhlM2OUaFGKz.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/61RYedFgX1K07xgVIvdJzukSR4g.jpg","cast":["Alia Bhatt","Ranveer Singh","Jaya Bachchan"],"director":"Karan Johar","release_year":2023,"content_rating":null},{"tmdb_id":"1511057","title":"Roommates","overview":"When shy college freshman Devon asks cool-girl Celeste to be her roommate, a blossoming friendship quickly spirals into a war of passive aggression.","runtime":108,"rating":6.5,"genres":["Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/eW1s6omXIfVkTlmKVe9y9Dwwt4u.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hpEjnTB0gAhMCBN42CJZawRfWuv.jpg","cast":["Sadie Sandler","Chloe East","Billy Bryk"],"director":"Chandler Levack","release_year":2026,"content_rating":"R"},{"tmdb_id":"1234731","title":"Anaconda","overview":"A group of friends facing mid-life crises head to the rainforest with the intention of remaking their favorite movie from their youth, only to find themselves in a fight for their ","runtime":100,"rating":5.9,"genres":["Adventure","Comedy","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/hBxN6dwrANN1ic3a4G9x6JZcR3C.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/swxhEJsAWms6X1fDZ4HdbvYBSf9.jpg","cast":["Jack Black","Paul Rudd","Steve Zahn"],"director":"Tom Gormican","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"1601797","title":"\u00bfQuieres Ser Mi Novia?","overview":"Javi and Lu's relationship faces dangerous territory as old and new temptations emerge: a young woman reigniting Javi's chemistry and a mature man pursuing Lu. Through humor, entan","runtime":97,"rating":8.3,"genres":["Comedy","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/oscW8xV8EhRYj7iAhyVlBohKqxo.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1ZruuRXztqC3QQybbgbVxVrdNjv.jpg","cast":["Ludwika Paleta","Juanpa Zurita","Harold Azuara"],"director":"Ihtzi Hurtado","release_year":2026,"content_rating":null},{"tmdb_id":"1049471","title":"Outcome","overview":"Reef Hawk, Hollywood's poster child since age six, is not okay. When he learns about an extortion plot tied to a mysterious video, Reef preemptively sets out on a redemption tour t","runtime":84,"rating":5.3,"genres":["Comedy","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/kSzcpfbTy2pXHGvrVU2WhQTo6oU.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/avwIERZtWiWa34qShf5biDzAVaF.jpg","cast":["Keanu Reeves","Jonah Hill","Cameron Diaz"],"director":"Jonah Hill","release_year":2026,"content_rating":"R"},{"tmdb_id":"329505","title":"Lola's Secret","overview":"Young man has his dreams come true when the sexy new maid seduces him. But she also has a secret that leads to trouble.","runtime":88,"rating":7.0,"genres":["Drama","Comedy","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/qaJ4iQngrLbyz9OgaQkJLppDN6m.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tId87yE7JnQsQsqOpnGXjz9PoEe.jpg","cast":["Donatella Damiani","Scott Coffey","Gabriele Tinti"],"director":"Bruno Gaburro","release_year":1984,"content_rating":null},{"tmdb_id":"1115544","title":"Mike & Nick & Nick & Alice","overview":"Two gangsters and the woman they love try to survive the most dangerous night of their lives. As if that wasn\u2019t enough, there\u2019s one wild ingredient added to the mix: a time machine","runtime":107,"rating":6.7,"genres":["Comedy","Science Fiction","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/7F0jc75HrSkLVcvOXR2FXAIwuEv.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/uNToXatdunyvWXyXMrTI1nLvh6r.jpg","cast":["James Marsden","Vince Vaughn","Eiza Gonz\u00e1lez"],"director":"BenDavid Grabinski","release_year":2026,"content_rating":"R"},{"tmdb_id":"1266127","title":"Ready or Not: Here I Come","overview":"Moments after surviving an all-out attack from the Le Domas family, Grace discovers she\u2019s reached the next level of the nightmarish game \u2014 and this time with her estranged sister F","runtime":108,"rating":6.9,"genres":["Horror","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/jRf89HVEtBZiSnOXXWDhZOfuTwW.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jSxeFrFCajefwka3TTRY4k8XVEX.jpg","cast":["Samara Weaving","Kathryn Newton","Elijah Wood"],"director":"Matt Bettinelli-Olpin","release_year":2026,"content_rating":"R"},{"tmdb_id":"1168190","title":"The Wrecking Crew","overview":"Estranged half-brothers Jonny and James reunite after their father's mysterious death. As they search for the truth, buried secrets reveal a conspiracy threatening to tear their fa","runtime":125,"rating":6.9,"genres":["Action","Comedy","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/gbVwHl4YPSq6BcC92TQpe7qUTh6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/cz4vLJrmaV1zJlRYbxqtvLzeLWB.jpg","cast":["Dave Bautista","Jason Momoa","Temuera Morrison"],"director":"\u00c1ngel Manuel Soto","release_year":2026,"content_rating":"R"},{"tmdb_id":"803796","title":"KPop Demon Hunters","overview":"When K-pop superstars Rumi, Mira and Zoey aren't selling out stadiums, they're using their secret powers to protect their fans from supernatural threats.","runtime":96,"rating":8.0,"genres":["Fantasy","Music","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/zT7Lhw3BhJbMkRqm9Zlx2YGMsY0.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/w3Bi0wygeFQctn6AqFTwhGNXRwL.jpg","cast":["Arden Cho","May Hong","Ji-young Yoo"],"director":"Chris Appelhans","release_year":2025,"content_rating":"PG"},{"tmdb_id":"1325734","title":"The Drama","overview":"A happily engaged couple is put to the test when an unexpected turn sends their wedding week off the rails.","runtime":105,"rating":7.0,"genres":["Romance","Comedy","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/ikcNOWB6Qo1ER1H1BJL6Vf0W22s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1oKLEA9JOhvaBwLpqjROisvWMy7.jpg","cast":["Zendaya","Robert Pattinson","Mamoudou Athie"],"director":"Kristoffer Borgli","release_year":2026,"content_rating":"R"},{"tmdb_id":"1119449","title":"Good Luck, Have Fun, Don't Die","overview":"A 'Man from the Future' arrives at an LA diner where he must recruit the precise combination of disgruntled patrons to join him on a one-night quest to save the world from the term","runtime":134,"rating":6.9,"genres":["Science Fiction","Action","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/rWcfOdY7TU6lTdazWj0ebDZnAfO.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/drRxbu2OHG0DEENptZ8wI5f0uEU.jpg","cast":["Sam Rockwell","Juno Temple","Haley Lu Richardson"],"director":"Gore Verbinski","release_year":2026,"content_rating":"R"}],"Drama":[{"tmdb_id":"1523145","title":"Your Heart Will Be Broken","overview":"High school student Polina is saved from bullying at her new school and makes a deal with the main bully Bars: he must pretend to be her boyfriend and protect her, and she must do ","runtime":134,"rating":6.9,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/7wIBfBl2gejt6xHxNSK0reVIm7E.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1x9e0qWonw634NhIsRdvnneeqvN.jpg","cast":["Daniel Vegas","Veronika Zhuravleva","Ivan Trushin"],"director":"Mikhail Vaynberg","release_year":2026,"content_rating":null},{"tmdb_id":"350","title":"The Devil Wears Prada","overview":"A young woman from the Midwest gets more than she bargained for when she moves to New York to become a writer and ends up as the assistant to the tyrannical, larger-than-life edito","runtime":109,"rating":7.4,"genres":["Drama","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/8912AsVuS7Sj915apArUFbv6F9L.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/CpLAfXgSNeNRRbRzPrTuzKmIHO.jpg","cast":["Meryl Streep","Anne Hathaway","Emily Blunt"],"director":"David Frankel","release_year":2006,"content_rating":"PG-13"},{"tmdb_id":"680493","title":"Return to Silent Hill","overview":"When James receives a mysterious letter from his lost love Mary, he is drawn to Silent Hill\u2014a once-familiar town now consumed by darkness. As he searches for her, James faces monst","runtime":106,"rating":5.2,"genres":["Mystery","Drama","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/fqAGFN2K2kDL0EHxvJaXzaMUkkt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/v0NEB75SZjxY8GS3ho8WeEvjIT3.jpg","cast":["Jeremy Irvine","Hannah Emily Anderson","Evie Templeton"],"director":"Christophe Gans","release_year":2026,"content_rating":"R"},{"tmdb_id":"1419406","title":"The Shadow's Edge","overview":"Macau Police brings the tracking expert police officer out of retirement to help catch a dangerous group of professional thieves.","runtime":142,"rating":7.2,"genres":["Action","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/e0RU6KpdnrqFxDKlI3NOqN8nHL6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/4BtL2vvEufDXDP4u6xQjjQ1Y2aT.jpg","cast":["Jackie Chan","Zhang Zifeng","Tony Leung Ka-fai"],"director":"Larry Yang","release_year":2025,"content_rating":"NR"},{"tmdb_id":"936075","title":"Michael","overview":"Discover the story of Michael Jackson, one of the most influential artists the world has ever known, and his life beyond the music, tracing his journey from the discovery of his ex","runtime":127,"rating":7.5,"genres":["Music","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/3Qud19bBUrrJAzy0Ilm8gRJlJXP.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/xBT0oNq6rsTFv4SxG5uGRIEOrq6.jpg","cast":["Jaafar Jackson","Colman Domingo","Nia Long"],"director":"Antoine Fuqua","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"848116","title":"Rocky Aur Rani Kii Prem Kahaani","overview":"Gym-freak brat Rocky falls in love with Rani, who comes from a well-educated Bengali family. Being from polar opposite worlds, the two decide to switch their families to adjust to ","runtime":179,"rating":6.1,"genres":["Comedy","Drama","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/vTQIqlxUkOuyf2UKhlM2OUaFGKz.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/61RYedFgX1K07xgVIvdJzukSR4g.jpg","cast":["Alia Bhatt","Ranveer Singh","Jaya Bachchan"],"director":"Karan Johar","release_year":2023,"content_rating":null},{"tmdb_id":"1659087","title":"180","overview":"When an unexpected road rage incident puts his son in critical condition, an enraged father spirals down a dark path of emotional turmoil and vengeance.","runtime":94,"rating":5.6,"genres":["Thriller","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/9ISjrhA38HpSSGtfiCk8lpziC3K.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/iQSXJs6RbTumcwxMjCedDoK99rx.jpg","cast":["Prince Grootboom","Noxolo Dlamini","Danica De La Rey"],"director":"Alex Yazbek","release_year":2026,"content_rating":"R"},{"tmdb_id":"1049471","title":"Outcome","overview":"Reef Hawk, Hollywood's poster child since age six, is not okay. When he learns about an extortion plot tied to a mysterious video, Reef preemptively sets out on a redemption tour t","runtime":84,"rating":5.3,"genres":["Comedy","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/kSzcpfbTy2pXHGvrVU2WhQTo6oU.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/avwIERZtWiWa34qShf5biDzAVaF.jpg","cast":["Keanu Reeves","Jonah Hill","Cameron Diaz"],"director":"Jonah Hill","release_year":2026,"content_rating":"R"},{"tmdb_id":"1268127","title":"Humint","overview":"A South Korean agent hunts a drug ring in Russia and goes head-to-head with a North Korean operative \u2014 pulling both into peril and tangled secrets.","runtime":120,"rating":7.2,"genres":["Thriller","Action","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/82bX2GK4PhaJQtfkTnfmd2P7erG.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/5KFThZkdBEQkp9gPWWWNb5CI5yD.jpg","cast":["Zo In-sung","Park Jeong-min","Park Hae-joon"],"director":"Ryoo Seung-wan","release_year":2026,"content_rating":null},{"tmdb_id":"1367642","title":"Reminders of Him","overview":"When Diem's custodial grandparents adamantly refuse Kenna's attempts to see her daughter, Kenna discovers unexpected compassion, and then something truer and deeper, with former NF","runtime":114,"rating":7.2,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/7L6rceYgzQ0NeHD7PRDNrRoQ291.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/5rxEnsgriw8z065q51lrvPKYmCL.jpg","cast":["Maika Monroe","Tyriq Withers","Rudy Pankow"],"director":"Vanessa Caswill","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"329505","title":"Lola's Secret","overview":"Young man has his dreams come true when the sexy new maid seduces him. But she also has a secret that leads to trouble.","runtime":88,"rating":7.0,"genres":["Drama","Comedy","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/qaJ4iQngrLbyz9OgaQkJLppDN6m.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tId87yE7JnQsQsqOpnGXjz9PoEe.jpg","cast":["Donatella Damiani","Scott Coffey","Gabriele Tinti"],"director":"Bruno Gaburro","release_year":1984,"content_rating":null},{"tmdb_id":"7451","title":"xXx","overview":"Xander Cage is your standard adrenaline junkie with no fear and a lousy attitude. When the US Government \"recruits\" him to go on a mission, he's not exactly thrilled. His mission: ","runtime":124,"rating":6.0,"genres":["Action","Adventure","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/xeEw3eLeSFmJgXZzmF2Efww0q3s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2OHa6ukEq3Hce7Pc2kvu8wkmMFY.jpg","cast":["Vin Diesel","Asia Argento","Marton Csokas"],"director":"Rob Cohen","release_year":2002,"content_rating":"PG-13"},{"tmdb_id":"1316092","title":"\"Wuthering Heights\"","overview":"Tragedy strikes when Heathcliff falls in love with Catherine Earnshaw, a woman from a wealthy family in 18th-century England.","runtime":136,"rating":6.5,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/3YBce6dTh1D5oCMITXk2S5QhPt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/vSQSYd2zZTqc0zmHImwWEGGluMI.jpg","cast":["Margot Robbie","Jacob Elordi","Hong Chau"],"director":"Emerald Fennell","release_year":2026,"content_rating":"R"},{"tmdb_id":"879945","title":"The Unknown Man","overview":"Louis, a Flemish writer, decides to isolate himself at the C\u00f4te d\u2019Azur, hoping this place will bring him inspiration.","runtime":23,"rating":7.3,"genres":["Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/4TpBhdaSl5ALHbgeaYOLF8Q3haz.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7uXzE0ZBkbAeKylOz7cUQF4Yw75.jpg","cast":["Geert Van Rampelberg","Samuel Suchod","Anna Sacuto"],"director":"Anthony Schatteman","release_year":2021,"content_rating":null},{"tmdb_id":"157336","title":"Interstellar","overview":"The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel and conquer the vast distances involved in an in","runtime":169,"rating":8.5,"genres":["Adventure","Drama","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2ssWTSVklAEc98frZUQhgtGHx7s.jpg","cast":["Matthew McConaughey","Anne Hathaway","Michael Caine"],"director":"Christopher Nolan","release_year":2014,"content_rating":"PG-13"},{"tmdb_id":"875828","title":"Peaky Blinders: The Immortal Man","overview":"After his estranged son gets embroiled in a Nazi plot, self-exiled gangster Tommy Shelby must return to Birmingham to save his family \u2014 and his nation.","runtime":112,"rating":7.2,"genres":["Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/gRMalasZEzsZi4w2VFuYusfSfqf.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/aouxo2EaR7QSGBBUNTITuW0lj4z.jpg","cast":["Cillian Murphy","Barry Keoghan","Rebecca Ferguson"],"director":"Tom Harper","release_year":2026,"content_rating":"R"},{"tmdb_id":"1658216","title":"Stepdaddy","overview":"Emotions and intrigue run high in this titillating taboo family affair. Chloe and Nica are sisters who both find themselves in their own passionate love affairs with their stepdad ","runtime":70,"rating":5.0,"genres":["Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/oZxNblisKuDzSUW5g18FERjyJs9.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/nyW8YdrnSYtmTE9hgrpmGqkKw5b.jpg","cast":["Astrid Lee","Christy Imperial","Jamilla Obispo"],"director":"Christopher Novabos","release_year":2026,"content_rating":null},{"tmdb_id":"278","title":"The Shawshank Redemption","overview":"Imprisoned in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting ski","runtime":142,"rating":8.7,"genres":["Drama","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zfbjgQE1uSd9wiPTX4VzsLi0rGG.jpg","cast":["Tim Robbins","Morgan Freeman","Bob Gunton"],"director":"Frank Darabont","release_year":1994,"content_rating":"R"},{"tmdb_id":"238","title":"The Godfather","overview":"Spanning the years 1945 to 1955, a chronicle of the fictional Italian-American Corleone crime family. When organized crime family patriarch, Vito Corleone barely survives an attemp","runtime":175,"rating":8.7,"genres":["Drama","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tSPT36ZKlP2WVHJLM4cQPLSzv3b.jpg","cast":["Marlon Brando","Al Pacino","James Caan"],"director":"Francis Ford Coppola","release_year":1972,"content_rating":"R"},{"tmdb_id":"1325734","title":"The Drama","overview":"A happily engaged couple is put to the test when an unexpected turn sends their wedding week off the rails.","runtime":105,"rating":7.0,"genres":["Romance","Comedy","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/ikcNOWB6Qo1ER1H1BJL6Vf0W22s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1oKLEA9JOhvaBwLpqjROisvWMy7.jpg","cast":["Zendaya","Robert Pattinson","Mamoudou Athie"],"director":"Kristoffer Borgli","release_year":2026,"content_rating":"R"}],"Horror":[{"tmdb_id":"1198994","title":"Send Help","overview":"Two colleagues become stranded on a deserted island, the only survivors of a plane crash. On the island, they must overcome past grievances and work together to survive, but ultima","runtime":113,"rating":7.0,"genres":["Horror","Thriller","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/mjkS2iAgWj3ik1DTjvI15nHZ7yl.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/gCmfeKmEAZBP5gcXpiqb0gii9rS.jpg","cast":["Rachel McAdams","Dylan O'Brien","Edyll Ismail"],"director":"Sam Raimi","release_year":2026,"content_rating":"R"},{"tmdb_id":"1470130","title":"The Mortuary Assistant","overview":"Rebecca Owens, a recent mortuary science graduate takes a night shift job at River Fields Mortuary. Initially, the job seems straightforward \u2014 embalming bodies, completing paperwor","runtime":91,"rating":5.5,"genres":["Horror","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/72AoFPC5TY4DfJwXXS9rPwPeReD.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/gM1kQRPwOVW1Eos5tVWqcYmHR5S.jpg","cast":["Willa Holland","Paul Sparks","John Adams"],"director":"Jeremiah Kipp","release_year":2026,"content_rating":null},{"tmdb_id":"1304313","title":"Lee Cronin's The Mummy","overview":"The young daughter of a journalist disappears into the desert without a trace\u2014eight years later, the broken family is shocked when she is returned to them, as what should be a joyf","runtime":133,"rating":6.9,"genres":["Horror","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/8L8efNkz8rUmwR7sV0g3vnC9yjn.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zc08qkHtWfZ2cQGQBK1S5yafJmR.jpg","cast":["Jack Reynor","Laia Costa","May Calamawy"],"director":"Lee Cronin","release_year":2026,"content_rating":"R"},{"tmdb_id":"1290417","title":"Thrash","overview":"When a Category 5 hurricane decimates a coastal town, the storm surge brings devastation, chaos, and something far more frightening onto shore: hungry sharks.","runtime":84,"rating":6.0,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/adk8weka3O5648g3de4z3y4aE7G.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/3ooXDVaz4xHKtwe4lkmF1gNopOC.jpg","cast":["Phoebe Dynevor","Whitney Peak","Djimon Hounsou"],"director":"Tommy Wirkola","release_year":2026,"content_rating":"R"},{"tmdb_id":"1010755","title":"The Strangers: Chapter 3","overview":"Tethered by a frightening conclusion, Maya and the Strangers are locked on an unavoidable, unforgiving collision course \u2014 a showdown that proves they\u2019re far from strangers now.","runtime":92,"rating":5.7,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/yPHwX78mcwJw3I6YOJ9qh2wQBFr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/fPfDB0IHOqvmKIzFP9CA51OOS1N.jpg","cast":["Madelaine Petsch","Richard Brake","Ema Horvath"],"director":"Renny Harlin","release_year":2026,"content_rating":"R"},{"tmdb_id":"1480387","title":"undertone","overview":"The host of a popular paranormal podcast becomes haunted by terrifying recordings mysteriously sent her way.","runtime":94,"rating":6.6,"genres":["Horror","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/2PFgFMnrdCPXWiZl1PUvky7Mo9D.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/qXxFWyur7jFkg2aQgENcXuyYeHF.jpg","cast":["Nina Kiri","Adam DiMarco","Mich\u00e8le Duquet"],"director":"Ian Tuason","release_year":2026,"content_rating":"R"},{"tmdb_id":"1352874","title":"The Crucifix: Blood of the Exorcist","overview":"A gruesome discovery in the grounds of their new home plunges a young couple into a maelstrom of spiritual possession, pagan rituals, Viking battles, and violent revenge.","runtime":92,"rating":6.1,"genres":["Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/uLXxpWRfoIPfB2fwM8hsAMIjSWf.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/be5T7oHxmDG4ytEimwPdmDHZD9N.jpg","cast":["Hannaj Bang Bendz","Dean Kilbey","Nicholas Anscombe"],"director":"Stephen Roach","release_year":2025,"content_rating":null},{"tmdb_id":"1159559","title":"Scream 7","overview":"When a new Ghostface killer emerges in the quiet town where Sidney Prescott has built a new life, her darkest fears are realized as her daughter becomes the next target. Determined","runtime":114,"rating":6.1,"genres":["Horror","Mystery","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/jjyuk0edLiW8vOSnlfwWCCLpbh5.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/t9J2HXaDuJR7bvIG9XF7mttn4VY.jpg","cast":["Neve Campbell","Courteney Cox","Isabel May"],"director":"Kevin Williamson","release_year":2026,"content_rating":"R"},{"tmdb_id":"680493","title":"Return to Silent Hill","overview":"When James receives a mysterious letter from his lost love Mary, he is drawn to Silent Hill\u2014a once-familiar town now consumed by darkness. As he searches for her, James faces monst","runtime":106,"rating":5.2,"genres":["Mystery","Drama","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/fqAGFN2K2kDL0EHxvJaXzaMUkkt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/v0NEB75SZjxY8GS3ho8WeEvjIT3.jpg","cast":["Jeremy Irvine","Hannah Emily Anderson","Evie Templeton"],"director":"Christophe Gans","release_year":2026,"content_rating":"R"},{"tmdb_id":"1193501","title":"Whistle","overview":"A misfit group of unwitting high school students stumble upon a cursed object, an ancient Aztec Death Whistle. They discover that blowing the whistle and the terrifying sound it em","runtime":100,"rating":6.0,"genres":["Horror","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/eGxPyseSnEZBMJaopGfRUO9HSYx.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/yJi6g0CnsqANLNuVaRX28tZxeHX.jpg","cast":["Dafne Keen","Sophie N\u00e9lisse","Sky Yang"],"director":"Corin Hardy","release_year":2026,"content_rating":"R"},{"tmdb_id":"1418657","title":"The Yeti","overview":"When an oil tycoon and a famous adventurer vanish into the harsh winter of remote northern Alaska, a hand-picked rescue team endeavors to bring them home. What they don\u2019t know is t","runtime":93,"rating":6.9,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/zaqEfoKcWkVni2eONhJ7DRhMO8Q.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1ytf7rzkZ7RLlMnBdGggQ0ENe6z.jpg","cast":["Brittany Allen","Eric Nelsen","Corbin Bernsen"],"director":"Gene Gallerano","release_year":2026,"content_rating":"R"},{"tmdb_id":"1084187","title":"Pretty Lethal","overview":"A troupe of ballerinas find themselves fighting for survival as they attempt to escape from a remote inn after their bus breaks down on the way to a dance competition.","runtime":89,"rating":6.8,"genres":["Music","Thriller","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/znTPnXCK3lEQJgqXCvP7e5FUz6f.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/z3bzhmC0CPikWeerUkLO73YvGrC.jpg","cast":["Maddie Ziegler","Lana Condor","Iris Apatow"],"director":"Vicky Jewson","release_year":2026,"content_rating":"R"},{"tmdb_id":"1234731","title":"Anaconda","overview":"A group of friends facing mid-life crises head to the rainforest with the intention of remaking their favorite movie from their youth, only to find themselves in a fight for their ","runtime":100,"rating":5.9,"genres":["Adventure","Comedy","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/hBxN6dwrANN1ic3a4G9x6JZcR3C.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/swxhEJsAWms6X1fDZ4HdbvYBSf9.jpg","cast":["Jack Black","Paul Rudd","Steve Zahn"],"director":"Tom Gormican","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"1526650","title":"Mudborn","overview":"Hsu-Chuan, who works at a game company, accidentally brings home a broken clay doll from a haunted house while developing a new horror VR game. Unexpectedly, his pregnant wife, Mu-","runtime":111,"rating":6.8,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/ifYNeKwpyKUTtjkUExrqTc65L2p.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/pmGkvEWKFDapogIzkG7TqB0aeYE.jpg","cast":["Tony Yang","Cecilia Choi","Derek Chang"],"director":"Shieh Meng-ju","release_year":2025,"content_rating":null},{"tmdb_id":"1159831","title":"The Bride!","overview":"A lonely Frankenstein travels to 1930s Chicago to ask groundbreaking scientist Dr. Euphronious to create a companion for him. The two revive a murdered young woman and The Bride is","runtime":127,"rating":6.2,"genres":["Science Fiction","Horror","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/lV8YHwGkYZsm6EfIqnhaSz2avKt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/l8rKKMU2M9dDULO9CEtDNdWAEUJ.jpg","cast":["Jessie Buckley","Christian Bale","Peter Sarsgaard"],"director":"Maggie Gyllenhaal","release_year":2026,"content_rating":"R"},{"tmdb_id":"329505","title":"Lola's Secret","overview":"Young man has his dreams come true when the sexy new maid seduces him. But she also has a secret that leads to trouble.","runtime":88,"rating":7.0,"genres":["Drama","Comedy","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/qaJ4iQngrLbyz9OgaQkJLppDN6m.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tId87yE7JnQsQsqOpnGXjz9PoEe.jpg","cast":["Donatella Damiani","Scott Coffey","Gabriele Tinti"],"director":"Bruno Gaburro","release_year":1984,"content_rating":null},{"tmdb_id":"1266127","title":"Ready or Not: Here I Come","overview":"Moments after surviving an all-out attack from the Le Domas family, Grace discovers she\u2019s reached the next level of the nightmarish game \u2014 and this time with her estranged sister F","runtime":108,"rating":6.9,"genres":["Horror","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/jRf89HVEtBZiSnOXXWDhZOfuTwW.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jSxeFrFCajefwka3TTRY4k8XVEX.jpg","cast":["Samara Weaving","Kathryn Newton","Elijah Wood"],"director":"Matt Bettinelli-Olpin","release_year":2026,"content_rating":"R"},{"tmdb_id":"1272837","title":"28 Years Later: The Bone Temple","overview":"Dr. Kelson finds himself in a shocking new relationship - with consequences that could change the world as they know it - and Spike's encounter with Jimmy Crystal becomes a nightma","runtime":109,"rating":7.2,"genres":["Horror","Thriller","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/kK1BGkG3KAvWB0WMV1DfOx9yTMZ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hHDNOlATHhre4eZ7aYz5cdyJLik.jpg","cast":["Ralph Fiennes","Jack O'Connell","Alfie Williams"],"director":"Nia DaCosta","release_year":2026,"content_rating":"R"},{"tmdb_id":"1610418","title":"The House on Haunted Grounds","overview":"What begins as a routine investigation into a house slated for demolition turns into a nightmare when the team faces an evil force, leaving behind only the recovered footage.","runtime":69,"rating":5.8,"genres":["Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/750RNSHr25GQcCr2Ws8iSGrHJA9.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/r9aYDDP7tHpwCvQbOxcfhZFBT63.jpg","cast":["Logan Wallace","Andrew Thomas","Stuart Maxheimer"],"director":"Brendan Rudnicki","release_year":2026,"content_rating":null},{"tmdb_id":"1110034","title":"Kraken","overview":"Marine biologist Johanne is doing research on a fish farm in Vangsnes, a rural community located by the fjord, when she encounters several strange occurrences. Along with the bruta","runtime":94,"rating":6.0,"genres":["Horror","Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/jVsflOu9WpMqUJ3WwVX2mITi86S.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/xcBlMEvzuaHoWANKYn5PGvcW4OC.jpg","cast":["Sara Khorami","Mikkel Bratt Silset","Ingvild Holthe Bygdnes"],"director":"P\u00e5l \u00d8ie","release_year":2026,"content_rating":null}],"Thriller":[{"tmdb_id":"1198994","title":"Send Help","overview":"Two colleagues become stranded on a deserted island, the only survivors of a plane crash. On the island, they must overcome past grievances and work together to survive, but ultima","runtime":113,"rating":7.0,"genres":["Horror","Thriller","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/mjkS2iAgWj3ik1DTjvI15nHZ7yl.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/gCmfeKmEAZBP5gcXpiqb0gii9rS.jpg","cast":["Rachel McAdams","Dylan O'Brien","Edyll Ismail"],"director":"Sam Raimi","release_year":2026,"content_rating":"R"},{"tmdb_id":"1613798","title":"Vengeance","overview":"The brutal murder of the wife of \u201cToro,\u201d a military hero in the special forces, turns him into a man with a single purpose: revenge. After a stroke of fate makes him a millionaire,","runtime":103,"rating":6.7,"genres":["Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/ygWXPL0RS91JyJPNOfK34eV3bRE.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jJmlCFi5EjpH5vHmOczRiVDm0qS.jpg","cast":["Omar Chaparro","Alejandro Speitzer","Paola Nu\u00f1ez"],"director":"Rodrigo Valdes","release_year":2026,"content_rating":null},{"tmdb_id":"1290821","title":"Shelter","overview":"A man living in self-imposed exile on a remote island rescues a young girl from a violent storm, setting off a chain of events that forces him out of seclusion to protect her from ","runtime":107,"rating":6.8,"genres":["Action","Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/buPFnHZ3xQy6vZEHxbHgL1Pc6CR.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/nHxWyy18SvAZ8jJeemtS8k1UNjM.jpg","cast":["Jason Statham","Bodhi Rae Breathnach","Naomi Ackie"],"director":"Ric Roman Waugh","release_year":2026,"content_rating":"R"},{"tmdb_id":"840464","title":"Greenland 2: Migration","overview":"Having found the safety of the Greenland bunker after the comet Clarke decimated the Earth, the Garrity family must now risk everything to embark on a perilous journey across the w","runtime":98,"rating":6.5,"genres":["Adventure","Thriller","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/z2tqCJLsw6uEJ8nJV8BsQXGa3dr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/wns4x1GyxCudgOZRyhXKjXVJf3T.jpg","cast":["Gerard Butler","Morena Baccarin","Roman Griffin Davis"],"director":"Ric Roman Waugh","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1290417","title":"Thrash","overview":"When a Category 5 hurricane decimates a coastal town, the storm surge brings devastation, chaos, and something far more frightening onto shore: hungry sharks.","runtime":84,"rating":6.0,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/adk8weka3O5648g3de4z3y4aE7G.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/3ooXDVaz4xHKtwe4lkmF1gNopOC.jpg","cast":["Phoebe Dynevor","Whitney Peak","Djimon Hounsou"],"director":"Tommy Wirkola","release_year":2026,"content_rating":"R"},{"tmdb_id":"1171145","title":"Crime 101","overview":"When an elusive thief whose high-stakes heists unfold along the iconic 101 freeway in Los Angeles eyes the score of a lifetime, with hopes of this being his final job, his path col","runtime":141,"rating":7.0,"genres":["Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/tVvpFIoteRHNnoZMhdnwIVwJpCA.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/vG42HeYtoTFflqwP42wYD7tBuNr.jpg","cast":["Chris Hemsworth","Mark Ruffalo","Halle Berry"],"director":"Bart Layton","release_year":2026,"content_rating":"R"},{"tmdb_id":"1010755","title":"The Strangers: Chapter 3","overview":"Tethered by a frightening conclusion, Maya and the Strangers are locked on an unavoidable, unforgiving collision course \u2014 a showdown that proves they\u2019re far from strangers now.","runtime":92,"rating":5.7,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/yPHwX78mcwJw3I6YOJ9qh2wQBFr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/fPfDB0IHOqvmKIzFP9CA51OOS1N.jpg","cast":["Madelaine Petsch","Richard Brake","Ema Horvath"],"director":"Renny Harlin","release_year":2026,"content_rating":"R"},{"tmdb_id":"1641319","title":"Sniper: No Nation","overview":"Brandon Beckett and Agent Zero lead a rescue mission in Venezuela when their friends are taken hostage.","runtime":96,"rating":6.2,"genres":["Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/tUmARo0TZEK1EaSuS6dU35FhDyU.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7lizs4SuEU2ihkkAa0SZ66NtHbl.jpg","cast":["Chad Michael Collins","Ryan Robbins","Manuel Rodriguez-Saenz"],"director":"Trevor Calverley","release_year":2026,"content_rating":"R"},{"tmdb_id":"1419406","title":"The Shadow's Edge","overview":"Macau Police brings the tracking expert police officer out of retirement to help catch a dangerous group of professional thieves.","runtime":142,"rating":7.2,"genres":["Action","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/e0RU6KpdnrqFxDKlI3NOqN8nHL6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/4BtL2vvEufDXDP4u6xQjjQ1Y2aT.jpg","cast":["Jackie Chan","Zhang Zifeng","Tony Leung Ka-fai"],"director":"Larry Yang","release_year":2025,"content_rating":"NR"},{"tmdb_id":"1368166","title":"The Housemaid","overview":"Trying to escape her past, Millie Calloway accepts a job as a live-in housemaid for the wealthy Nina and Andrew Winchester. But what begins as a dream job quickly unravels into som","runtime":131,"rating":7.2,"genres":["Mystery","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/cWsBscZzwu5brg9YjNkGewRUvJX.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zTnAnYIn0Iv3cn0ZHlzLhou3ybm.jpg","cast":["Sydney Sweeney","Amanda Seyfried","Brandon Sklenar"],"director":"Paul Feig","release_year":2025,"content_rating":"R"},{"tmdb_id":"1418657","title":"The Yeti","overview":"When an oil tycoon and a famous adventurer vanish into the harsh winter of remote northern Alaska, a hand-picked rescue team endeavors to bring them home. What they don\u2019t know is t","runtime":93,"rating":6.9,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/zaqEfoKcWkVni2eONhJ7DRhMO8Q.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1ytf7rzkZ7RLlMnBdGggQ0ENe6z.jpg","cast":["Brittany Allen","Eric Nelsen","Corbin Bernsen"],"director":"Gene Gallerano","release_year":2026,"content_rating":"R"},{"tmdb_id":"1265609","title":"War Machine","overview":"On one last grueling mission during Army Ranger training, a combat engineer must lead his unit in a fight against a giant otherworldly killing machine.","runtime":110,"rating":7.2,"genres":["Action","Science Fiction","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/yWBs5mZcfLf777Cn3BNc3nQYgVK.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/6yeVcxFR0j08vlv2OlL6zbewm4D.jpg","cast":["Alan Ritchson","Dennis Quaid","Stephan James"],"director":"Patrick Hughes","release_year":2026,"content_rating":"R"},{"tmdb_id":"1084187","title":"Pretty Lethal","overview":"A troupe of ballerinas find themselves fighting for survival as they attempt to escape from a remote inn after their bus breaks down on the way to a dance competition.","runtime":89,"rating":6.8,"genres":["Music","Thriller","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/znTPnXCK3lEQJgqXCvP7e5FUz6f.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/z3bzhmC0CPikWeerUkLO73YvGrC.jpg","cast":["Maddie Ziegler","Lana Condor","Iris Apatow"],"director":"Vicky Jewson","release_year":2026,"content_rating":"R"},{"tmdb_id":"1526650","title":"Mudborn","overview":"Hsu-Chuan, who works at a game company, accidentally brings home a broken clay doll from a haunted house while developing a new horror VR game. Unexpectedly, his pregnant wife, Mu-","runtime":111,"rating":6.8,"genres":["Horror","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/ifYNeKwpyKUTtjkUExrqTc65L2p.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/pmGkvEWKFDapogIzkG7TqB0aeYE.jpg","cast":["Tony Yang","Cecilia Choi","Derek Chang"],"director":"Shieh Meng-ju","release_year":2025,"content_rating":null},{"tmdb_id":"1659087","title":"180","overview":"When an unexpected road rage incident puts his son in critical condition, an enraged father spirals down a dark path of emotional turmoil and vengeance.","runtime":94,"rating":5.6,"genres":["Thriller","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/9ISjrhA38HpSSGtfiCk8lpziC3K.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/iQSXJs6RbTumcwxMjCedDoK99rx.jpg","cast":["Prince Grootboom","Noxolo Dlamini","Danica De La Rey"],"director":"Alex Yazbek","release_year":2026,"content_rating":"R"},{"tmdb_id":"1268127","title":"Humint","overview":"A South Korean agent hunts a drug ring in Russia and goes head-to-head with a North Korean operative \u2014 pulling both into peril and tangled secrets.","runtime":120,"rating":7.2,"genres":["Thriller","Action","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/82bX2GK4PhaJQtfkTnfmd2P7erG.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/5KFThZkdBEQkp9gPWWWNb5CI5yD.jpg","cast":["Zo In-sung","Park Jeong-min","Park Hae-joon"],"director":"Ryoo Seung-wan","release_year":2026,"content_rating":null},{"tmdb_id":"7451","title":"xXx","overview":"Xander Cage is your standard adrenaline junkie with no fear and a lousy attitude. When the US Government \"recruits\" him to go on a mission, he's not exactly thrilled. His mission: ","runtime":124,"rating":6.0,"genres":["Action","Adventure","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/xeEw3eLeSFmJgXZzmF2Efww0q3s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2OHa6ukEq3Hce7Pc2kvu8wkmMFY.jpg","cast":["Vin Diesel","Asia Argento","Marton Csokas"],"director":"Rob Cohen","release_year":2002,"content_rating":"PG-13"},{"tmdb_id":"1272837","title":"28 Years Later: The Bone Temple","overview":"Dr. Kelson finds himself in a shocking new relationship - with consequences that could change the world as they know it - and Spike's encounter with Jimmy Crystal becomes a nightma","runtime":109,"rating":7.2,"genres":["Horror","Thriller","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/kK1BGkG3KAvWB0WMV1DfOx9yTMZ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hHDNOlATHhre4eZ7aYz5cdyJLik.jpg","cast":["Ralph Fiennes","Jack O'Connell","Alfie Williams"],"director":"Nia DaCosta","release_year":2026,"content_rating":"R"},{"tmdb_id":"1110034","title":"Kraken","overview":"Marine biologist Johanne is doing research on a fish farm in Vangsnes, a rural community located by the fjord, when she encounters several strange occurrences. Along with the bruta","runtime":94,"rating":6.0,"genres":["Horror","Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/jVsflOu9WpMqUJ3WwVX2mITi86S.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/xcBlMEvzuaHoWANKYn5PGvcW4OC.jpg","cast":["Sara Khorami","Mikkel Bratt Silset","Ingvild Holthe Bygdnes"],"director":"P\u00e5l \u00d8ie","release_year":2026,"content_rating":null},{"tmdb_id":"1088434","title":"Hellfire","overview":"A drifter with a mysterious past arrives in a small town and finds the residents in the grip of a ruthless crime boss and realizes he has to help them.","runtime":94,"rating":6.8,"genres":["Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/tQti9QTf13MfzNpXguijgNh7ojE.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/fyv3Cmsdq4pfiKU6M3azRATwBBU.jpg","cast":["Stephen Lang","Harvey Keitel","Scottie Thompson"],"director":"Isaac Florentine","release_year":2026,"content_rating":"R"}],"Science Fiction":[{"tmdb_id":"83533","title":"Avatar: Fire and Ash","overview":"In the wake of the devastating war against the RDA and the loss of their eldest son, Jake Sully and Neytiri face a new threat on Pandora: the Ash People, a violent and power-hungry","runtime":198,"rating":7.4,"genres":["Science Fiction","Adventure","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/aabwWZWx6z1aYP4PX2ADvbDKktd.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/u8DU5fkLoM5tTRukzPC31oGPxaQ.jpg","cast":["Sam Worthington","Zoe Salda\u00f1a","Sigourney Weaver"],"director":"James Cameron","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"687163","title":"Project Hail Mary","overview":"Science teacher Ryland Grace wakes up on a spaceship light years from home with no recollection of who he is or how he got there. As his memory returns, he begins to uncover his mi","runtime":157,"rating":8.2,"genres":["Science Fiction","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/yihdXomYb5kTeSivtFndMy5iDmf.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg","cast":["Ryan Gosling","Sandra H\u00fcller","James Ortiz"],"director":"Phil Lord","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1327819","title":"Hoppers","overview":"Scientists have discovered how to 'hop' human consciousness into lifelike robotic animals, allowing people to communicate with animals as animals. Animal lover Mabel seizes an oppo","runtime":105,"rating":7.6,"genres":["Animation","Family","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/xjtWQ2CL1mpmMNwuU5HeS4Iuwuu.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/u53UYu5XG2hNgWGvs3xGhAVzypl.jpg","cast":["Piper Curda","Bobby Moynihan","Jon Hamm"],"director":"Daniel Chong","release_year":2026,"content_rating":"PG"},{"tmdb_id":"840464","title":"Greenland 2: Migration","overview":"Having found the safety of the Greenland bunker after the comet Clarke decimated the Earth, the Garrity family must now risk everything to embark on a perilous journey across the w","runtime":98,"rating":6.5,"genres":["Adventure","Thriller","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/z2tqCJLsw6uEJ8nJV8BsQXGa3dr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/wns4x1GyxCudgOZRyhXKjXVJf3T.jpg","cast":["Gerard Butler","Morena Baccarin","Roman Griffin Davis"],"director":"Ric Roman Waugh","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1265609","title":"War Machine","overview":"On one last grueling mission during Army Ranger training, a combat engineer must lead his unit in a fight against a giant otherworldly killing machine.","runtime":110,"rating":7.2,"genres":["Action","Science Fiction","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/yWBs5mZcfLf777Cn3BNc3nQYgVK.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/6yeVcxFR0j08vlv2OlL6zbewm4D.jpg","cast":["Alan Ritchson","Dennis Quaid","Stephan James"],"director":"Patrick Hughes","release_year":2026,"content_rating":"R"},{"tmdb_id":"634649","title":"Spider-Man: No Way Home","overview":"Peter Parker is unmasked and no longer able to separate his normal life from the high-stakes of being a super-hero. When he asks for help from Doctor Strange the stakes become even","runtime":148,"rating":7.9,"genres":["Action","Adventure","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zD5v1E4joAzFvmAEytt7fM3ivyT.jpg","cast":["Tom Holland","Zendaya","Benedict Cumberbatch"],"director":"Jon Watts","release_year":2021,"content_rating":"PG-13"},{"tmdb_id":"1159831","title":"The Bride!","overview":"A lonely Frankenstein travels to 1930s Chicago to ask groundbreaking scientist Dr. Euphronious to create a companion for him. The two revive a murdered young woman and The Bride is","runtime":127,"rating":6.2,"genres":["Science Fiction","Horror","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/lV8YHwGkYZsm6EfIqnhaSz2avKt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/l8rKKMU2M9dDULO9CEtDNdWAEUJ.jpg","cast":["Jessie Buckley","Christian Bale","Peter Sarsgaard"],"director":"Maggie Gyllenhaal","release_year":2026,"content_rating":"R"},{"tmdb_id":"1115544","title":"Mike & Nick & Nick & Alice","overview":"Two gangsters and the woman they love try to survive the most dangerous night of their lives. As if that wasn\u2019t enough, there\u2019s one wild ingredient added to the mix: a time machine","runtime":107,"rating":6.7,"genres":["Comedy","Science Fiction","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/7F0jc75HrSkLVcvOXR2FXAIwuEv.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/uNToXatdunyvWXyXMrTI1nLvh6r.jpg","cast":["James Marsden","Vince Vaughn","Eiza Gonz\u00e1lez"],"director":"BenDavid Grabinski","release_year":2026,"content_rating":"R"},{"tmdb_id":"157336","title":"Interstellar","overview":"The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel and conquer the vast distances involved in an in","runtime":169,"rating":8.5,"genres":["Adventure","Drama","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2ssWTSVklAEc98frZUQhgtGHx7s.jpg","cast":["Matthew McConaughey","Anne Hathaway","Michael Caine"],"director":"Christopher Nolan","release_year":2014,"content_rating":"PG-13"},{"tmdb_id":"24428","title":"The Avengers","overview":"When an unexpected enemy emerges and threatens global safety and security, Nick Fury, director of the international peacekeeping agency known as S.H.I.E.L.D., finds himself in need","runtime":143,"rating":8.0,"genres":["Science Fiction","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg","cast":["Robert Downey Jr.","Chris Evans","Mark Ruffalo"],"director":"Joss Whedon","release_year":2012,"content_rating":"PG-13"},{"tmdb_id":"1242898","title":"Predator: Badlands","overview":"Cast out from his clan, a young Predator finds an unlikely ally in a damaged android and embarks on a treacherous journey in search of the ultimate adversary.","runtime":107,"rating":7.7,"genres":["Action","Science Fiction","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/erTRAi241eYF4K8KoGGOI8kFPox.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/82lM4GJ9uuNvNDOEpxFy77uv4Ak.jpg","cast":["Elle Fanning","Dimitrius Schuster-Koloamatangi","Ravi Narayan"],"director":"Dan Trachtenberg","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"1272837","title":"28 Years Later: The Bone Temple","overview":"Dr. Kelson finds himself in a shocking new relationship - with consequences that could change the world as they know it - and Spike's encounter with Jimmy Crystal becomes a nightma","runtime":109,"rating":7.2,"genres":["Horror","Thriller","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/kK1BGkG3KAvWB0WMV1DfOx9yTMZ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hHDNOlATHhre4eZ7aYz5cdyJLik.jpg","cast":["Ralph Fiennes","Jack O'Connell","Alfie Williams"],"director":"Nia DaCosta","release_year":2026,"content_rating":"R"},{"tmdb_id":"299536","title":"Avengers: Infinity War","overview":"As the Avengers and their allies have continued to protect the world from threats too large for any one hero to handle, a new danger has emerged from the cosmic shadows: Thanos. A ","runtime":149,"rating":8.2,"genres":["Adventure","Action","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg","cast":["Robert Downey Jr.","Chris Evans","Chris Hemsworth"],"director":"Anthony Russo","release_year":2018,"content_rating":"PG-13"},{"tmdb_id":"1236153","title":"Mercy","overview":"In the near future, a detective stands on trial accused of murdering his wife. He has ninety minutes to prove his innocence to the advanced AI Judge he once championed, before it d","runtime":99,"rating":7.0,"genres":["Science Fiction","Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/pyok1kZJCfyuFapYXzHcy7BLlQa.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/po1niVuud0tX86xOFegO5omQ2wX.jpg","cast":["Chris Pratt","Rebecca Ferguson","Kali Reis"],"director":"Timur Bekmambetov","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1234821","title":"Jurassic World Rebirth","overview":"Five years after the events of Jurassic World Dominion, covert operations expert Zora Bennett is contracted to lead a skilled team on a top-secret mission to secure genetic materia","runtime":134,"rating":6.3,"genres":["Science Fiction","Adventure","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/1RICxzeoNCAO5NpcRMIgg1XT6fm.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zNriRTr0kWwyaXPzdg1EIxf0BWk.jpg","cast":["Scarlett Johansson","Mahershala Ali","Jonathan Bailey"],"director":"Gareth Edwards","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"299534","title":"Avengers: Endgame","overview":"After the devastating events of Avengers: Infinity War, the universe is in ruins due to the efforts of the Mad Titan, Thanos. With the help of remaining allies, the Avengers must a","runtime":181,"rating":8.2,"genres":["Adventure","Science Fiction","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/ulzhLuWrPK07P1YkdWQLZnQh1JL.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg","cast":["Robert Downey Jr.","Chris Evans","Mark Ruffalo"],"director":"Anthony Russo","release_year":2019,"content_rating":"PG-13"},{"tmdb_id":"1119449","title":"Good Luck, Have Fun, Don't Die","overview":"A 'Man from the Future' arrives at an LA diner where he must recruit the precise combination of disgruntled patrons to join him on a one-night quest to save the world from the term","runtime":134,"rating":6.9,"genres":["Science Fiction","Action","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/rWcfOdY7TU6lTdazWj0ebDZnAfO.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/drRxbu2OHG0DEENptZ8wI5f0uEU.jpg","cast":["Sam Rockwell","Juno Temple","Haley Lu Richardson"],"director":"Gore Verbinski","release_year":2026,"content_rating":"R"},{"tmdb_id":"181808","title":"Star Wars: The Last Jedi","overview":"Rey develops her newly discovered abilities with the guidance of Luke Skywalker, who is unsettled by the strength of her powers. Meanwhile, the Resistance prepares to do battle wit","runtime":152,"rating":6.8,"genres":["Adventure","Action","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/kOVEVeg59E0wsnXmF9nrh6OmWII.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/bIUaCtWaRgd78SnoHJDI8TNf7Sd.jpg","cast":["Mark Hamill","Carrie Fisher","Adam Driver"],"director":"Rian Johnson","release_year":2017,"content_rating":"PG-13"},{"tmdb_id":"533535","title":"Deadpool & Wolverine","overview":"A listless Wade Wilson toils away in civilian life with his days as the morally flexible mercenary, Deadpool, behind him. But when his homeworld faces an existential threat, Wade m","runtime":128,"rating":7.6,"genres":["Action","Comedy","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/ufpeVEM64uZHPpzzeiDNIAdaeOD.jpg","cast":["Ryan Reynolds","Hugh Jackman","Emma Corrin"],"director":"Shawn Levy","release_year":2024,"content_rating":"R"},{"tmdb_id":"27205","title":"Inception","overview":"Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets is offered a chance to regain his old life as payment for a task considered to","runtime":148,"rating":8.4,"genres":["Action","Science Fiction","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/xlaY2zyzMfkhk0HSC5VUwzoZPU1.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/8ZTVqvKDQ8emSGUEMjsS4yHAwrp.jpg","cast":["Leonardo DiCaprio","Joseph Gordon-Levitt","Ken Watanabe"],"director":"Christopher Nolan","release_year":2010,"content_rating":"PG-13"}],"Animation":[{"tmdb_id":"1226863","title":"The Super Mario Galaxy Movie","overview":"Having thwarted Bowser's previous plot to marry Princess Peach, Mario and Luigi now face a fresh threat in Bowser Jr., who is determined to liberate his father from captivity and r","runtime":98,"rating":6.8,"genres":["Family","Comedy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/eJGWx219ZcEMVQJhAgMiqo8tYY.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/kxQiIJ4gVcD3K6o14MJ72p5yRcE.jpg","cast":["Chris Pratt","Charlie Day","Anya Taylor-Joy"],"director":"Aaron Horvath","release_year":2026,"content_rating":"PG"},{"tmdb_id":"1327819","title":"Hoppers","overview":"Scientists have discovered how to 'hop' human consciousness into lifelike robotic animals, allowing people to communicate with animals as animals. Animal lover Mabel seizes an oppo","runtime":105,"rating":7.6,"genres":["Animation","Family","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/xjtWQ2CL1mpmMNwuU5HeS4Iuwuu.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/u53UYu5XG2hNgWGvs3xGhAVzypl.jpg","cast":["Piper Curda","Bobby Moynihan","Jon Hamm"],"director":"Daniel Chong","release_year":2026,"content_rating":"PG"},{"tmdb_id":"1297842","title":"GOAT","overview":"A small goat with big dreams gets a once-in-a-lifetime shot to join the pros and play roarball, a high-intensity, co-ed, full-contact sport dominated by the fastest, fiercest anima","runtime":100,"rating":7.9,"genres":["Animation","Comedy","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/wfuqMlaExcoYiUEvKfVpUTt1v4u.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tq3h43fZy0H80vzf47MAY7R9Mxo.jpg","cast":["Caleb McLaughlin","Gabrielle Union","Stephen Curry"],"director":"Tyree Dillihay","release_year":2026,"content_rating":"PG"},{"tmdb_id":"502356","title":"The Super Mario Bros. Movie","overview":"While working underground to fix a water main, Brooklyn plumbers\u2014and brothers\u2014Mario and Luigi are transported down a mysterious pipe and wander into a magical new world. But when t","runtime":93,"rating":7.6,"genres":["Family","Comedy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9n2tJBplPbgR2ca05hS5CKXwP2c.jpg","cast":["Chris Pratt","Anya Taylor-Joy","Charlie Day"],"director":"Michael Jelenic","release_year":2023,"content_rating":"PG"},{"tmdb_id":"1311031","title":"Demon Slayer: Kimetsu no Yaiba Infinity Castle","overview":"The Demon Slayer Corps are drawn into the Infinity Castle, where Tanjiro, Nezuko, and the Hashira face terrifying Upper Rank demons in a desperate fight as the final battle against","runtime":156,"rating":7.7,"genres":["Animation","Action","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/fWVSwgjpT2D78VUh6X8UBd2rorW.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1RgPyOhN4DRs225BGTlHJqCudII.jpg","cast":["Natsuki Hanae","Takahiro Sakurai","Akira Ishida"],"director":"Haruo Sotozaki","release_year":2025,"content_rating":"R"},{"tmdb_id":"1084242","title":"Zootopia 2","overview":"After cracking the biggest case in Zootopia's history, rookie cops Judy Hopps and Nick Wilde find themselves on the twisting trail of a great mystery when Gary De'Snake arrives and","runtime":108,"rating":7.6,"genres":["Animation","Family","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/oJ7g2CifqpStmoYQyaLQgEU32qO.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/lgotja3xMoJZbynwHfcQcJAEMWH.jpg","cast":["Ginnifer Goodwin","Jason Bateman","Ke Huy Quan"],"director":"Jared Bush","release_year":2025,"content_rating":"PG"},{"tmdb_id":"803796","title":"KPop Demon Hunters","overview":"When K-pop superstars Rumi, Mira and Zoey aren't selling out stadiums, they're using their secret powers to protect their fans from supernatural threats.","runtime":96,"rating":8.0,"genres":["Fantasy","Music","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/zT7Lhw3BhJbMkRqm9Zlx2YGMsY0.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/w3Bi0wygeFQctn6AqFTwhGNXRwL.jpg","cast":["Arden Cho","May Hong","Ji-young Yoo"],"director":"Chris Appelhans","release_year":2025,"content_rating":"PG"},{"tmdb_id":"1539104","title":"JUJUTSU KAISEN: Execution","overview":"A veil abruptly descends over the busy Shibuya area amid the bustling Halloween crowds, trapping countless civilians inside. Satoru Gojo, the strongest jujutsu sorcerer, steps into","runtime":88,"rating":5.9,"genres":["Animation","Action","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/v0s3dx6am0RzfsuK3KdEy8ZoCDs.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/gtKglOSEq3d4MgQE4VsrT1sRkd0.jpg","cast":["Junya Enoki","Megumi Ogata","Koji Yusa"],"director":"Shota Goshozono","release_year":2025,"content_rating":"R"},{"tmdb_id":"1011985","title":"Kung Fu Panda 4","overview":"Po is gearing up to become the spiritual leader of his Valley of Peace, but also needs someone to take his place as Dragon Warrior. As such, he will train a new kung fu practitione","runtime":94,"rating":7.0,"genres":["Animation","Family","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/3ffPx9jqg0yj9y1KWeagT7D20CB.jpg","cast":["Jack Black","Awkwafina","Viola Davis"],"director":"Mike Mitchell","release_year":2024,"content_rating":"PG"},{"tmdb_id":"14836","title":"Coraline","overview":"Wandering her rambling old house in her boring new town, 11-year-old Coraline discovers a hidden door to a strangely idealized version of her life. In order to stay in the fantasy,","runtime":100,"rating":7.9,"genres":["Animation","Family","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/4jeFXQYytChdZYE9JYO7Un87IlW.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hofnlIyF6bePkgQOpcuRWLvzf15.jpg","cast":["Dakota Fanning","Teri Hatcher","Jennifer Saunders"],"director":"Henry Selick","release_year":2009,"content_rating":"PG"},{"tmdb_id":"324857","title":"Spider-Man: Into the Spider-Verse","overview":"Struggling to find his place in the world while juggling school and family, Brooklyn teenager Miles Morales is unexpectedly bitten by a radioactive spider and develops unfathomable","runtime":117,"rating":8.4,"genres":["Animation","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/8mnXR9rey5uQ08rZAvzojKWbDQS.jpg","cast":["Shameik Moore","Jake Johnson","Hailee Steinfeld"],"director":"Bob Persichetti","release_year":2018,"content_rating":"PG"},{"tmdb_id":"129","title":"Spirited Away","overview":"A young girl, Chihiro, becomes trapped in a strange new world of spirits. When her parents undergo a mysterious transformation, she must call upon the courage she never knew she ha","runtime":125,"rating":8.5,"genres":["Animation","Family","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/dyJvKsNs2KP8qQnAXbRwDjblViy.jpg","cast":["Rumi Hiiragi","Miyu Irino","Mari Natsuki"],"director":"Hayao Miyazaki","release_year":2001,"content_rating":"PG"},{"tmdb_id":"1218925","title":"Chainsaw Man - The Movie: Reze Arc","overview":"In a brutal war between devils, hunters, and secret enemies, a mysterious girl named Reze has stepped into Denji's world, and he faces his deadliest battle yet, fueled by love in a","runtime":99,"rating":8.3,"genres":["Animation","Action","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/pHyxb2RV5wLlboAwm9ZJ9qTVEDw.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/kfXgo2rMF1A19celCwLyQ4Xwpf8.jpg","cast":["Kikunosuke Toya","Reina Ueda","Tomori Kusunoki"],"director":"Tatsuya Yoshihara","release_year":2025,"content_rating":"R"},{"tmdb_id":"991494","title":"The SpongeBob Movie: Search for SquarePants","overview":"Desperate to be a big guy, SpongeBob sets out to prove his bravery to Mr. Krabs by following The Flying Dutchman \u2013 a mysterious swashbuckling ghost pirate \u2013 on a seafaring adventur","runtime":88,"rating":6.8,"genres":["Animation","Family","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/xJnOMMsFASxNiFnG7v3TNIQ3ife.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/pMxO1beNNFYMDM7RcDyKW5Wheuz.jpg","cast":["Tom Kenny","Clancy Brown","Rodger Bumpass"],"director":"Derek Drymon","release_year":2025,"content_rating":"PG"},{"tmdb_id":"569094","title":"Spider-Man: Across the Spider-Verse","overview":"After reuniting with Gwen Stacy, Brooklyn\u2019s full-time, friendly neighborhood Spider-Man is catapulted across the Multiverse, where he encounters the Spider Society, a team of Spide","runtime":140,"rating":8.3,"genres":["Animation","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9xfDWXAUbFXQK585JvByT5pEAhe.jpg","cast":["Shameik Moore","Hailee Steinfeld","Brian Tyree Henry"],"director":"Kemp Powers","release_year":2023,"content_rating":"PG"},{"tmdb_id":"1241982","title":"Moana 2","overview":"After receiving an unexpected call from her wayfinding ancestors, Moana journeys alongside Maui and a new crew to the far seas of Oceania and into dangerous, long-lost waters for a","runtime":100,"rating":7.0,"genres":["Animation","Adventure","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/aLVkiINlIeCkcZIzb7XHzPYgO6L.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zo8CIjJ2nfNOevqNajwMRO6Hwka.jpg","cast":["Auli\u02bbi Cravalho","Dwayne Johnson","Hual\u0101lai Chung"],"director":"David G. Derrick Jr.","release_year":2024,"content_rating":"PG"},{"tmdb_id":"1022789","title":"Inside Out 2","overview":"Teenager Riley's mind headquarters is undergoing a sudden demolition to make room for something entirely unexpected: new Emotions! Joy, Sadness, Anger, Fear and Disgust, who\u2019ve lon","runtime":97,"rating":7.5,"genres":["Animation","Adventure","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/p5ozvmdgsmbWe0H8Xk7Rc8SCwAB.jpg","cast":["Amy Poehler","Maya Hawke","Kensington Tallman"],"director":"Kelsey Mann","release_year":2024,"content_rating":"PG"},{"tmdb_id":"677638","title":"We Bare Bears: The Movie","overview":"When Grizz, Panda, and Ice Bear's love of food trucks and viral videos get out of hand, the brothers are now chased away from their home and embark on a trip to Canada, where they ","runtime":69,"rating":7.8,"genres":["Animation","Adventure","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/khtIr0Gxtz52T10RRQZ42o1a5Ry.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/pO1SnM5a1fEsYrFaVZW78Wb0zRJ.jpg","cast":["Eric Edelstein","Bobby Moynihan","Demetri Martin"],"director":"Daniel Chong","release_year":2020,"content_rating":"G"},{"tmdb_id":"980477","title":"Ne Zha 2","overview":"After a catastrophic event leaves their bodies destroyed, Ne Zha and Ao Bing are granted a fragile second chance at life. As tensions rise between the dragon clans and celestial fo","runtime":144,"rating":8.1,"genres":["Animation","Fantasy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/cb5NyNrqiCNNoDkA8FfxHAtypdG.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/8btfz81bOJ2lC7cujYBTw03wzg3.jpg","cast":["Lu Yanting","Joseph","Han Mo"],"director":"Jiao Zi","release_year":2025,"content_rating":"NR"},{"tmdb_id":"1167307","title":"David","overview":"From the songs of his mother\u2019s heart to the whispers of a faithful God, David\u2019s story begins in quiet devotion. When the giant Goliath rises to terrorize a nation, a young shepherd","runtime":109,"rating":8.1,"genres":["Animation","Family","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/bESlrLOrsQ9gKzaGQGHXKOyIUtX.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/oN4TQ1TxchynXlFiXFBL3NHLT54.jpg","cast":["Brandon Engman","Brian Stivale","Shahar Taboch"],"director":"Phil Cunningham","release_year":2025,"content_rating":"PG"}],"Romance":[{"tmdb_id":"1523145","title":"Your Heart Will Be Broken","overview":"High school student Polina is saved from bullying at her new school and makes a deal with the main bully Bars: he must pretend to be her boyfriend and protect her, and she must do ","runtime":134,"rating":6.9,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/7wIBfBl2gejt6xHxNSK0reVIm7E.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1x9e0qWonw634NhIsRdvnneeqvN.jpg","cast":["Daniel Vegas","Veronika Zhuravleva","Ivan Trushin"],"director":"Mikhail Vaynberg","release_year":2026,"content_rating":null},{"tmdb_id":"848116","title":"Rocky Aur Rani Kii Prem Kahaani","overview":"Gym-freak brat Rocky falls in love with Rani, who comes from a well-educated Bengali family. Being from polar opposite worlds, the two decide to switch their families to adjust to ","runtime":179,"rating":6.1,"genres":["Comedy","Drama","Family"],"poster_url":"https://image.tmdb.org/t/p/w500/vTQIqlxUkOuyf2UKhlM2OUaFGKz.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/61RYedFgX1K07xgVIvdJzukSR4g.jpg","cast":["Alia Bhatt","Ranveer Singh","Jaya Bachchan"],"director":"Karan Johar","release_year":2023,"content_rating":null},{"tmdb_id":"1601797","title":"\u00bfQuieres Ser Mi Novia?","overview":"Javi and Lu's relationship faces dangerous territory as old and new temptations emerge: a young woman reigniting Javi's chemistry and a mature man pursuing Lu. Through humor, entan","runtime":97,"rating":8.3,"genres":["Comedy","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/oscW8xV8EhRYj7iAhyVlBohKqxo.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1ZruuRXztqC3QQybbgbVxVrdNjv.jpg","cast":["Ludwika Paleta","Juanpa Zurita","Harold Azuara"],"director":"Ihtzi Hurtado","release_year":2026,"content_rating":null},{"tmdb_id":"1367642","title":"Reminders of Him","overview":"When Diem's custodial grandparents adamantly refuse Kenna's attempts to see her daughter, Kenna discovers unexpected compassion, and then something truer and deeper, with former NF","runtime":114,"rating":7.2,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/7L6rceYgzQ0NeHD7PRDNrRoQ291.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/5rxEnsgriw8z065q51lrvPKYmCL.jpg","cast":["Maika Monroe","Tyriq Withers","Rudy Pankow"],"director":"Vanessa Caswill","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1316092","title":"\"Wuthering Heights\"","overview":"Tragedy strikes when Heathcliff falls in love with Catherine Earnshaw, a woman from a wealthy family in 18th-century England.","runtime":136,"rating":6.5,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/3YBce6dTh1D5oCMITXk2S5QhPt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/vSQSYd2zZTqc0zmHImwWEGGluMI.jpg","cast":["Margot Robbie","Jacob Elordi","Hong Chau"],"director":"Emerald Fennell","release_year":2026,"content_rating":"R"},{"tmdb_id":"418579","title":"Young Sister-In-Law","overview":"Three men and women start living together. Byeong-soo is chosen in a scenario contest and is picked to write a script for a movie, so he leaves the noisy city and moves in with his","runtime":82,"rating":6.0,"genres":["Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/jAGlDPyNfLvGMXI3Gt9E4SrRtHg.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/ciQTFPRtGGCZ3QA97ZCPN12saD6.jpg","cast":["Kang Ye-na","Si Hyeon","Do Mo-se"],"director":"Choi Woo-seong","release_year":2016,"content_rating":null},{"tmdb_id":"1325734","title":"The Drama","overview":"A happily engaged couple is put to the test when an unexpected turn sends their wedding week off the rails.","runtime":105,"rating":7.0,"genres":["Romance","Comedy","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/ikcNOWB6Qo1ER1H1BJL6Vf0W22s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/1oKLEA9JOhvaBwLpqjROisvWMy7.jpg","cast":["Zendaya","Robert Pattinson","Mamoudou Athie"],"director":"Kristoffer Borgli","release_year":2026,"content_rating":"R"},{"tmdb_id":"1010581","title":"My Fault","overview":"Noah must leave her city, boyfriend, and friends to move into William Leister's mansion, the flashy and wealthy husband of her mother Rafaela. As a proud and independent 17 year ol","runtime":116,"rating":7.7,"genres":["Drama","Romance","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/w46Vw536HwNnEzOa7J24YH9DPRS.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/oz4U9eA6ilYf1tyiVuGmkftdLac.jpg","cast":["Nicole Wallace","Gabriel Guevara","Marta Hazas"],"director":"Domingo Gonz\u00e1lez","release_year":2023,"content_rating":"NR"},{"tmdb_id":"1246049","title":"Dracula","overview":"In late 15th-century Eastern Europe, Prince Vlad II\u2019s bride is brutally murdered. As a result, he renounces God and damns Heaven itself. Cursed with eternal life, Vlad is reborn as","runtime":130,"rating":7.1,"genres":["Horror","Fantasy","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/dYRqA50yd0nB3qBR7AtWEJJQ8q.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/be5SIsRGMckO8tU9lrLcIik70Dy.jpg","cast":["Caleb Landry Jones","Zo\u00eb Bleu Sidel","Christoph Waltz"],"director":"Luc Besson","release_year":2025,"content_rating":"R"},{"tmdb_id":"744275","title":"After We Fell","overview":"Just as Tessa's life begins to become unglued, nothing is what she thought it would be. Not her friends nor her family. The only person that she should be able to rely on is Hardin","runtime":99,"rating":7.0,"genres":["Drama","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/dU4HfnTEJDf9KvxGS9hgO7BVeju.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/mxdiaM2tsx8M6W3zLgiPwAkhQfq.jpg","cast":["Josephine Langford","Hero Fiennes Tiffin","Carter Jenkins"],"director":"Castille Landon","release_year":2021,"content_rating":"R"},{"tmdb_id":"50619","title":"The Twilight Saga: Breaking Dawn - Part 1","overview":"Bella Swan and Edward Cullen's honeymoon phase is abruptly disrupted by betrayals and unforeseen tragedies that endanger their world.","runtime":117,"rating":6.2,"genres":["Adventure","Fantasy","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/qs8LsHKYlVRmJbFUiSUhhRAygwj.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hBwDYiOPwXHuwiYGP82ekFNSeBr.jpg","cast":["Kristen Stewart","Robert Pattinson","Taylor Lautner"],"director":"Bill Condon","release_year":2011,"content_rating":"PG-13"},{"tmdb_id":"597","title":"Titanic","overview":"101-year-old Rose DeWitt Bukater tells the story of her life aboard the Titanic, 84 years later. A young Rose boards the ship with her mother and fianc\u00e9. Meanwhile, Jack Dawson and","runtime":194,"rating":7.9,"genres":["Drama","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/qBChUbS8ksbJoPTfZpogsnxG5tY.jpg","cast":["Leonardo DiCaprio","Kate Winslet","Billy Zane"],"director":"James Cameron","release_year":1997,"content_rating":"PG-13"},{"tmdb_id":"20222","title":"Sex with Love","overview":"In Santiago, Chile, the schoolteacher Luisa proposes a debate about sex with the parents of her students with the intention of giving classes about sex education to the youngsters.","runtime":108,"rating":6.5,"genres":["Comedy","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/9Unz4SnlkXg0OAxgiLKZAfu096c.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/bYkgJUGlkDrKzCrN6Jrd1qVx9aB.jpg","cast":["\u00c1lvaro Rudolphy","Sigrid Alegr\u00eda","Patricio Contreras"],"director":"Boris Quercia","release_year":2003,"content_rating":null},{"tmdb_id":"858024","title":"Hamnet","overview":"The powerful story of love and loss that inspired the creation of Shakespeare's timeless masterpiece, Hamlet.","runtime":126,"rating":7.7,"genres":["Drama","Romance","History"],"poster_url":"https://image.tmdb.org/t/p/w500/vbeyOZm2bvBXcbgPD3v6o94epPX.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/a9IQXoYCpsjqTOKXRTw1osLd5il.jpg","cast":["Jessie Buckley","Paul Mescal","Emily Watson"],"director":"Chlo\u00e9 Zhao","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"1218925","title":"Chainsaw Man - The Movie: Reze Arc","overview":"In a brutal war between devils, hunters, and secret enemies, a mysterious girl named Reze has stepped into Denji's world, and he faces his deadliest battle yet, fueled by love in a","runtime":99,"rating":8.3,"genres":["Animation","Action","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/pHyxb2RV5wLlboAwm9ZJ9qTVEDw.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/kfXgo2rMF1A19celCwLyQ4Xwpf8.jpg","cast":["Kikunosuke Toya","Reina Ueda","Tomori Kusunoki"],"director":"Tatsuya Yoshihara","release_year":2025,"content_rating":"R"},{"tmdb_id":"402431","title":"Wicked","overview":"In the land of Oz, ostracized and misunderstood green-skinned Elphaba is forced to share a room with the popular aristocrat Glinda at Shiz University, and the two's unlikely friend","runtime":162,"rating":6.9,"genres":["Drama","Romance","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/xDGbZ0JJ3mYaGKy4Nzd9Kph6M9L.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/uVlUu174iiKhsUGqnOSy46eIIMU.jpg","cast":["Cynthia Erivo","Ariana Grande","Michelle Yeoh"],"director":"Jon M. Chu","release_year":2024,"content_rating":"PG"},{"tmdb_id":"950396","title":"The Gorge","overview":"Two highly trained operatives grow close from a distance after being sent to guard opposite sides of a mysterious gorge. When an evil below emerges, they must work together to surv","runtime":128,"rating":7.6,"genres":["Romance","Science Fiction","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/7iMBZzVZtG0oBug4TfqDb9ZxAOa.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9nhjGaFLKtddDPtPaX5EmKqsWdH.jpg","cast":["Miles Teller","Anya Taylor-Joy","Sigourney Weaver"],"director":"Scott Derrickson","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"13","title":"Forrest Gump","overview":"A man with a low IQ has accomplished great things in his life and been present during significant historic events\u2014in each case, far exceeding what anyone imagined he could do. But ","runtime":142,"rating":8.5,"genres":["Comedy","Drama","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/saHP97rTPS5eLmrLQEcANmKrsFl.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/67HggiWaP9ZLv5sPYmyRV37yAJM.jpg","cast":["Tom Hanks","Robin Wright","Gary Sinise"],"director":"Robert Zemeckis","release_year":1994,"content_rating":"PG-13"},{"tmdb_id":"1156594","title":"Our Fault","overview":"Jenna and Lion's wedding brings about the long-awaited reunion between Noah and Nick after their breakup. Nick's inability to forgive Noah stands as an insurmountable barrier. He, ","runtime":110,"rating":7.4,"genres":["Romance","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/yzqHt4m1SeY9FbPrfZ0C2Hi9x1s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7QirCB1o80NEFpQGlQRZerZbQEp.jpg","cast":["Nicole Wallace","Gabriel Guevara","Gabriela Andrada"],"director":"Domingo Gonz\u00e1lez","release_year":2025,"content_rating":null},{"tmdb_id":"38","title":"Eternal Sunshine of the Spotless Mind","overview":"Joel Barish, heartbroken that his girlfriend underwent a procedure to erase him from her memory, decides to do the same. However, as he watches his memories of her fade away, he re","runtime":108,"rating":8.1,"genres":["Science Fiction","Drama","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/5MwkWH9tYHv3mV9OdYTMR5qreIz.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/W1ffLQGHoxfAOq0ZYdPtJlvAdb.jpg","cast":["Jim Carrey","Kate Winslet","Kirsten Dunst"],"director":"Michel Gondry","release_year":2004,"content_rating":"R"}],"Adventure":[{"tmdb_id":"1226863","title":"The Super Mario Galaxy Movie","overview":"Having thwarted Bowser's previous plot to marry Princess Peach, Mario and Luigi now face a fresh threat in Bowser Jr., who is determined to liberate his father from captivity and r","runtime":98,"rating":6.8,"genres":["Family","Comedy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/eJGWx219ZcEMVQJhAgMiqo8tYY.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/kxQiIJ4gVcD3K6o14MJ72p5yRcE.jpg","cast":["Chris Pratt","Charlie Day","Anya Taylor-Joy"],"director":"Aaron Horvath","release_year":2026,"content_rating":"PG"},{"tmdb_id":"83533","title":"Avatar: Fire and Ash","overview":"In the wake of the devastating war against the RDA and the loss of their eldest son, Jake Sully and Neytiri face a new threat on Pandora: the Ash People, a violent and power-hungry","runtime":198,"rating":7.4,"genres":["Science Fiction","Adventure","Fantasy"],"poster_url":"https://image.tmdb.org/t/p/w500/aabwWZWx6z1aYP4PX2ADvbDKktd.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/u8DU5fkLoM5tTRukzPC31oGPxaQ.jpg","cast":["Sam Worthington","Zoe Salda\u00f1a","Sigourney Weaver"],"director":"James Cameron","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"687163","title":"Project Hail Mary","overview":"Science teacher Ryland Grace wakes up on a spaceship light years from home with no recollection of who he is or how he got there. As his memory returns, he begins to uncover his mi","runtime":157,"rating":8.2,"genres":["Science Fiction","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/yihdXomYb5kTeSivtFndMy5iDmf.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg","cast":["Ryan Gosling","Sandra H\u00fcller","James Ortiz"],"director":"Phil Lord","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"1327819","title":"Hoppers","overview":"Scientists have discovered how to 'hop' human consciousness into lifelike robotic animals, allowing people to communicate with animals as animals. Animal lover Mabel seizes an oppo","runtime":105,"rating":7.6,"genres":["Animation","Family","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/xjtWQ2CL1mpmMNwuU5HeS4Iuwuu.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/u53UYu5XG2hNgWGvs3xGhAVzypl.jpg","cast":["Piper Curda","Bobby Moynihan","Jon Hamm"],"director":"Daniel Chong","release_year":2026,"content_rating":"PG"},{"tmdb_id":"1084577","title":"Balls Up","overview":"Two marketing executives go \"balls out\" and pitch a bold full\u2011coverage condom sponsorship with the World Cup. After their drunken celebration in Brazil sparks a global scandal, the","runtime":104,"rating":5.7,"genres":["Comedy","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/xwvJ3WzdJ1OCuDoY8LAxBUlQyig.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/jRsjWwZzI39bTm44FNhRtiICd9k.jpg","cast":["Mark Wahlberg","Paul Walter Hauser","Sacha Baron Cohen"],"director":"Peter Farrelly","release_year":2026,"content_rating":"R"},{"tmdb_id":"840464","title":"Greenland 2: Migration","overview":"Having found the safety of the Greenland bunker after the comet Clarke decimated the Earth, the Garrity family must now risk everything to embark on a perilous journey across the w","runtime":98,"rating":6.5,"genres":["Adventure","Thriller","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/z2tqCJLsw6uEJ8nJV8BsQXGa3dr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/wns4x1GyxCudgOZRyhXKjXVJf3T.jpg","cast":["Gerard Butler","Morena Baccarin","Roman Griffin Davis"],"director":"Ric Roman Waugh","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"502356","title":"The Super Mario Bros. Movie","overview":"While working underground to fix a water main, Brooklyn plumbers\u2014and brothers\u2014Mario and Luigi are transported down a mysterious pipe and wander into a magical new world. But when t","runtime":93,"rating":7.6,"genres":["Family","Comedy","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9n2tJBplPbgR2ca05hS5CKXwP2c.jpg","cast":["Chris Pratt","Anya Taylor-Joy","Charlie Day"],"director":"Michael Jelenic","release_year":2023,"content_rating":"PG"},{"tmdb_id":"1084242","title":"Zootopia 2","overview":"After cracking the biggest case in Zootopia's history, rookie cops Judy Hopps and Nick Wilde find themselves on the twisting trail of a great mystery when Gary De'Snake arrives and","runtime":108,"rating":7.6,"genres":["Animation","Family","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/oJ7g2CifqpStmoYQyaLQgEU32qO.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/lgotja3xMoJZbynwHfcQcJAEMWH.jpg","cast":["Ginnifer Goodwin","Jason Bateman","Ke Huy Quan"],"director":"Jared Bush","release_year":2025,"content_rating":"PG"},{"tmdb_id":"1234731","title":"Anaconda","overview":"A group of friends facing mid-life crises head to the rainforest with the intention of remaking their favorite movie from their youth, only to find themselves in a fight for their ","runtime":100,"rating":5.9,"genres":["Adventure","Comedy","Horror"],"poster_url":"https://image.tmdb.org/t/p/w500/hBxN6dwrANN1ic3a4G9x6JZcR3C.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/swxhEJsAWms6X1fDZ4HdbvYBSf9.jpg","cast":["Jack Black","Paul Rudd","Steve Zahn"],"director":"Tom Gormican","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"634649","title":"Spider-Man: No Way Home","overview":"Peter Parker is unmasked and no longer able to separate his normal life from the high-stakes of being a super-hero. When he asks for help from Doctor Strange the stakes become even","runtime":148,"rating":7.9,"genres":["Action","Adventure","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zD5v1E4joAzFvmAEytt7fM3ivyT.jpg","cast":["Tom Holland","Zendaya","Benedict Cumberbatch"],"director":"Jon Watts","release_year":2021,"content_rating":"PG-13"},{"tmdb_id":"662707","title":"Starbright","overview":"A young woman becomes the guardian of a fallen star, which she must protect from dangerous forces with the help of a brave stranger.","runtime":148,"rating":7.0,"genres":["Adventure","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/m1Zl07DNYeSyNcz9hf8hDsS2oB5.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tZiRd4IpoNiaoLXr2o2YfhTMjE2.jpg","cast":["John Rhys-Davies","Ted Levine","Elisabeth R\u00f6hm"],"director":"Francesco Lucente","release_year":2026,"content_rating":null},{"tmdb_id":"7451","title":"xXx","overview":"Xander Cage is your standard adrenaline junkie with no fear and a lousy attitude. When the US Government \"recruits\" him to go on a mission, he's not exactly thrilled. His mission: ","runtime":124,"rating":6.0,"genres":["Action","Adventure","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/xeEw3eLeSFmJgXZzmF2Efww0q3s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2OHa6ukEq3Hce7Pc2kvu8wkmMFY.jpg","cast":["Vin Diesel","Asia Argento","Marton Csokas"],"director":"Rob Cohen","release_year":2002,"content_rating":"PG-13"},{"tmdb_id":"157336","title":"Interstellar","overview":"The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel and conquer the vast distances involved in an in","runtime":169,"rating":8.5,"genres":["Adventure","Drama","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2ssWTSVklAEc98frZUQhgtGHx7s.jpg","cast":["Matthew McConaughey","Anne Hathaway","Michael Caine"],"director":"Christopher Nolan","release_year":2014,"content_rating":"PG-13"},{"tmdb_id":"24428","title":"The Avengers","overview":"When an unexpected enemy emerges and threatens global safety and security, Nick Fury, director of the international peacekeeping agency known as S.H.I.E.L.D., finds himself in need","runtime":143,"rating":8.0,"genres":["Science Fiction","Action","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg","cast":["Robert Downey Jr.","Chris Evans","Mark Ruffalo"],"director":"Joss Whedon","release_year":2012,"content_rating":"PG-13"},{"tmdb_id":"1242898","title":"Predator: Badlands","overview":"Cast out from his clan, a young Predator finds an unlikely ally in a damaged android and embarks on a treacherous journey in search of the ultimate adversary.","runtime":107,"rating":7.7,"genres":["Action","Science Fiction","Adventure"],"poster_url":"https://image.tmdb.org/t/p/w500/erTRAi241eYF4K8KoGGOI8kFPox.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/82lM4GJ9uuNvNDOEpxFy77uv4Ak.jpg","cast":["Elle Fanning","Dimitrius Schuster-Koloamatangi","Ravi Narayan"],"director":"Dan Trachtenberg","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"299536","title":"Avengers: Infinity War","overview":"As the Avengers and their allies have continued to protect the world from threats too large for any one hero to handle, a new danger has emerged from the cosmic shadows: Thanos. A ","runtime":149,"rating":8.2,"genres":["Adventure","Action","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg","cast":["Robert Downey Jr.","Chris Evans","Chris Hemsworth"],"director":"Anthony Russo","release_year":2018,"content_rating":"PG-13"},{"tmdb_id":"1234821","title":"Jurassic World Rebirth","overview":"Five years after the events of Jurassic World Dominion, covert operations expert Zora Bennett is contracted to lead a skilled team on a top-secret mission to secure genetic materia","runtime":134,"rating":6.3,"genres":["Science Fiction","Adventure","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/1RICxzeoNCAO5NpcRMIgg1XT6fm.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zNriRTr0kWwyaXPzdg1EIxf0BWk.jpg","cast":["Scarlett Johansson","Mahershala Ali","Jonathan Bailey"],"director":"Gareth Edwards","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"299534","title":"Avengers: Endgame","overview":"After the devastating events of Avengers: Infinity War, the universe is in ruins due to the efforts of the Mad Titan, Thanos. With the help of remaining allies, the Avengers must a","runtime":181,"rating":8.2,"genres":["Adventure","Science Fiction","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/ulzhLuWrPK07P1YkdWQLZnQh1JL.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg","cast":["Robert Downey Jr.","Chris Evans","Mark Ruffalo"],"director":"Anthony Russo","release_year":2019,"content_rating":"PG-13"},{"tmdb_id":"181808","title":"Star Wars: The Last Jedi","overview":"Rey develops her newly discovered abilities with the guidance of Luke Skywalker, who is unsettled by the strength of her powers. Meanwhile, the Resistance prepares to do battle wit","runtime":152,"rating":6.8,"genres":["Adventure","Action","Science Fiction"],"poster_url":"https://image.tmdb.org/t/p/w500/kOVEVeg59E0wsnXmF9nrh6OmWII.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/bIUaCtWaRgd78SnoHJDI8TNf7Sd.jpg","cast":["Mark Hamill","Carrie Fisher","Adam Driver"],"director":"Rian Johnson","release_year":2017,"content_rating":"PG-13"},{"tmdb_id":"50619","title":"The Twilight Saga: Breaking Dawn - Part 1","overview":"Bella Swan and Edward Cullen's honeymoon phase is abruptly disrupted by betrayals and unforeseen tragedies that endanger their world.","runtime":117,"rating":6.2,"genres":["Adventure","Fantasy","Romance"],"poster_url":"https://image.tmdb.org/t/p/w500/qs8LsHKYlVRmJbFUiSUhhRAygwj.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/hBwDYiOPwXHuwiYGP82ekFNSeBr.jpg","cast":["Kristen Stewart","Robert Pattinson","Taylor Lautner"],"director":"Bill Condon","release_year":2011,"content_rating":"PG-13"}],"Crime":[{"tmdb_id":"1290821","title":"Shelter","overview":"A man living in self-imposed exile on a remote island rescues a young girl from a violent storm, setting off a chain of events that forces him out of seclusion to protect her from ","runtime":107,"rating":6.8,"genres":["Action","Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/buPFnHZ3xQy6vZEHxbHgL1Pc6CR.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/nHxWyy18SvAZ8jJeemtS8k1UNjM.jpg","cast":["Jason Statham","Bodhi Rae Breathnach","Naomi Ackie"],"director":"Ric Roman Waugh","release_year":2026,"content_rating":"R"},{"tmdb_id":"1171145","title":"Crime 101","overview":"When an elusive thief whose high-stakes heists unfold along the iconic 101 freeway in Los Angeles eyes the score of a lifetime, with hopes of this being his final job, his path col","runtime":141,"rating":7.0,"genres":["Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/tVvpFIoteRHNnoZMhdnwIVwJpCA.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/vG42HeYtoTFflqwP42wYD7tBuNr.jpg","cast":["Chris Hemsworth","Mark Ruffalo","Halle Berry"],"director":"Bart Layton","release_year":2026,"content_rating":"R"},{"tmdb_id":"1159559","title":"Scream 7","overview":"When a new Ghostface killer emerges in the quiet town where Sidney Prescott has built a new life, her darkest fears are realized as her daughter becomes the next target. Determined","runtime":114,"rating":6.1,"genres":["Horror","Mystery","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/jjyuk0edLiW8vOSnlfwWCCLpbh5.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/t9J2HXaDuJR7bvIG9XF7mttn4VY.jpg","cast":["Neve Campbell","Courteney Cox","Isabel May"],"director":"Kevin Williamson","release_year":2026,"content_rating":"R"},{"tmdb_id":"1419406","title":"The Shadow's Edge","overview":"Macau Police brings the tracking expert police officer out of retirement to help catch a dangerous group of professional thieves.","runtime":142,"rating":7.2,"genres":["Action","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/e0RU6KpdnrqFxDKlI3NOqN8nHL6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/4BtL2vvEufDXDP4u6xQjjQ1Y2aT.jpg","cast":["Jackie Chan","Zhang Zifeng","Tony Leung Ka-fai"],"director":"Larry Yang","release_year":2025,"content_rating":"NR"},{"tmdb_id":"1659087","title":"180","overview":"When an unexpected road rage incident puts his son in critical condition, an enraged father spirals down a dark path of emotional turmoil and vengeance.","runtime":94,"rating":5.6,"genres":["Thriller","Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/9ISjrhA38HpSSGtfiCk8lpziC3K.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/iQSXJs6RbTumcwxMjCedDoK99rx.jpg","cast":["Prince Grootboom","Noxolo Dlamini","Danica De La Rey"],"director":"Alex Yazbek","release_year":2026,"content_rating":"R"},{"tmdb_id":"7451","title":"xXx","overview":"Xander Cage is your standard adrenaline junkie with no fear and a lousy attitude. When the US Government \"recruits\" him to go on a mission, he's not exactly thrilled. His mission: ","runtime":124,"rating":6.0,"genres":["Action","Adventure","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/xeEw3eLeSFmJgXZzmF2Efww0q3s.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/2OHa6ukEq3Hce7Pc2kvu8wkmMFY.jpg","cast":["Vin Diesel","Asia Argento","Marton Csokas"],"director":"Rob Cohen","release_year":2002,"content_rating":"PG-13"},{"tmdb_id":"1115544","title":"Mike & Nick & Nick & Alice","overview":"Two gangsters and the woman they love try to survive the most dangerous night of their lives. As if that wasn\u2019t enough, there\u2019s one wild ingredient added to the mix: a time machine","runtime":107,"rating":6.7,"genres":["Comedy","Science Fiction","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/7F0jc75HrSkLVcvOXR2FXAIwuEv.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/uNToXatdunyvWXyXMrTI1nLvh6r.jpg","cast":["James Marsden","Vince Vaughn","Eiza Gonz\u00e1lez"],"director":"BenDavid Grabinski","release_year":2026,"content_rating":"R"},{"tmdb_id":"1168190","title":"The Wrecking Crew","overview":"Estranged half-brothers Jonny and James reunite after their father's mysterious death. As they search for the truth, buried secrets reveal a conspiracy threatening to tear their fa","runtime":125,"rating":6.9,"genres":["Action","Comedy","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/gbVwHl4YPSq6BcC92TQpe7qUTh6.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/cz4vLJrmaV1zJlRYbxqtvLzeLWB.jpg","cast":["Dave Bautista","Jason Momoa","Temuera Morrison"],"director":"\u00c1ngel Manuel Soto","release_year":2026,"content_rating":"R"},{"tmdb_id":"875828","title":"Peaky Blinders: The Immortal Man","overview":"After his estranged son gets embroiled in a Nazi plot, self-exiled gangster Tommy Shelby must return to Birmingham to save his family \u2014 and his nation.","runtime":112,"rating":7.2,"genres":["Crime","Drama"],"poster_url":"https://image.tmdb.org/t/p/w500/gRMalasZEzsZi4w2VFuYusfSfqf.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/aouxo2EaR7QSGBBUNTITuW0lj4z.jpg","cast":["Cillian Murphy","Barry Keoghan","Rebecca Ferguson"],"director":"Tom Harper","release_year":2026,"content_rating":"R"},{"tmdb_id":"425274","title":"Now You See Me: Now You Don't","overview":"The original Four Horsemen reunite with a new generation of illusionists to take on powerful diamond heiress Veronika Vanderberg, who leads a criminal empire built on money launder","runtime":113,"rating":6.5,"genres":["Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/oD3Eey4e4Z259XLm3eD3WGcoJAh.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/dHSz0tSFuO2CsXJ1CApSauP9Ncl.jpg","cast":["Jesse Eisenberg","Dominic Sessa","Ariana Greenblatt"],"director":"Ruben Fleischer","release_year":2025,"content_rating":"PG-13"},{"tmdb_id":"278","title":"The Shawshank Redemption","overview":"Imprisoned in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting ski","runtime":142,"rating":8.7,"genres":["Drama","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/zfbjgQE1uSd9wiPTX4VzsLi0rGG.jpg","cast":["Tim Robbins","Morgan Freeman","Bob Gunton"],"director":"Frank Darabont","release_year":1994,"content_rating":"R"},{"tmdb_id":"1236153","title":"Mercy","overview":"In the near future, a detective stands on trial accused of murdering his wife. He has ninety minutes to prove his innocence to the advanced AI Judge he once championed, before it d","runtime":99,"rating":7.0,"genres":["Science Fiction","Action","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/pyok1kZJCfyuFapYXzHcy7BLlQa.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/po1niVuud0tX86xOFegO5omQ2wX.jpg","cast":["Chris Pratt","Rebecca Ferguson","Kali Reis"],"director":"Timur Bekmambetov","release_year":2026,"content_rating":"PG-13"},{"tmdb_id":"238","title":"The Godfather","overview":"Spanning the years 1945 to 1955, a chronicle of the fictional Italian-American Corleone crime family. When organized crime family patriarch, Vito Corleone barely survives an attemp","runtime":175,"rating":8.7,"genres":["Drama","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/tSPT36ZKlP2WVHJLM4cQPLSzv3b.jpg","cast":["Marlon Brando","Al Pacino","James Caan"],"director":"Francis Ford Coppola","release_year":1972,"content_rating":"R"},{"tmdb_id":"28322","title":"Madness","overview":"An escaped convicted murderer invades the cottage of a man, his wife and the wife's sister, whereupon he proceeds to torment this already dysfunctional trio with rape and violence.","runtime":89,"rating":4.9,"genres":["Thriller","Action","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/gV0J0Fqw2mYMtQbzb0ruxv9MAeZ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/7TJjD2X9GTEqyLVIJKLS85J2V47.jpg","cast":["Joe Dallesandro","Patrizia Behn","Gianni Macchia"],"director":"Fernando Di Leo","release_year":1980,"content_rating":null},{"tmdb_id":"1107166","title":"Psycho Killer","overview":"Following the brutal murder of her husband, a Kansas highway patrol officer sets out on a journey to track down the perpetrator. As the hunt progresses, she comes to realize the ma","runtime":91,"rating":5.6,"genres":["Crime","Horror","Mystery"],"poster_url":"https://image.tmdb.org/t/p/w500/5xgxxmLivJXL8aF0HdZfpx8aAIo.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/kt9p1cS4O72aSeFRGQzlLuI1mY4.jpg","cast":["Georgina Campbell","James Preston Rogers","Malcolm McDowell"],"director":"Gavin Polone","release_year":2026,"content_rating":"R"},{"tmdb_id":"1416391","title":"Toaster","overview":"Murder and chaos erupt when a miser becomes obsessed with a toaster he gave as a wedding gift.","runtime":126,"rating":5.3,"genres":["Comedy","Crime","Action"],"poster_url":"https://image.tmdb.org/t/p/w500/cbYyWHc1dL1bfwEJbaMYDYKgWG2.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/3gI8gS7YIpmEzUehg3cZVQ62phl.jpg","cast":["Rajkummar Rao","Sanya Malhotra","Archana Puran Singh"],"director":"Vivek Daschaudary","release_year":2026,"content_rating":null},{"tmdb_id":"1306368","title":"The Rip","overview":"Trust frays when a team of Miami cops discovers millions in cash inside a run-down stash house, calling everyone \u2014 and everything \u2014 into question.","runtime":113,"rating":7.1,"genres":["Action","Thriller","Crime"],"poster_url":"https://image.tmdb.org/t/p/w500/eZo31Dhl5BQ6GfbMNf3oU0tUvPZ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/3F2EXWF1thX0BdrVaKvnm6mAhqh.jpg","cast":["Matt Damon","Ben Affleck","Teyana Taylor"],"director":"Joe Carnahan","release_year":2026,"content_rating":"R"},{"tmdb_id":"1339876","title":"Mardaani 3","overview":"Officer Shivani Shivaji Roy returns to hunt down those behind the disappearance of young girls, risking everything to bring them back alive.","runtime":131,"rating":7.3,"genres":["Action","Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/dHxLBtHw4InwsVumnthupZYz6NM.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/pfcyWSaPKGagqdunfBXQYCqZHxx.jpg","cast":["Rani Mukerji","Mallika Prasad","Janki Bodiwala"],"director":"Abhiraj Minawala","release_year":2026,"content_rating":null},{"tmdb_id":"1582770","title":"Dhurandhar: The Revenge","overview":"As rival gangs, corrupt officials and a ruthless Major Iqbal close in, Hamza's mission for his country spirals into a bloody personal war where the line between patriot and monster","runtime":229,"rating":7.7,"genres":["Action","Crime","Thriller"],"poster_url":"https://image.tmdb.org/t/p/w500/ov8vrRLZGoXHpYjSY9Vpv1tHJX7.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/owQeDouUZ6wI6f1aTOYEFd511zn.jpg","cast":["Ranveer Singh","Arjun Rampal","R. Madhavan"],"director":"Aditya Dhar","release_year":2026,"content_rating":"NR"},{"tmdb_id":"680","title":"Pulp Fiction","overview":"A burger-loving hit man, his philosophical partner, a drug-addled gangster's moll and a washed-up boxer converge in this sprawling, comedic crime caper. Their adventures unfurl in ","runtime":154,"rating":8.5,"genres":["Thriller","Crime","Comedy"],"poster_url":"https://image.tmdb.org/t/p/w500/vQWk5YBFWF4bZaofAbv0tShwBvQ.jpg","backdrop_url":"https://image.tmdb.org/t/p/w780/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg","cast":["John Travolta","Samuel L. Jackson","Uma Thurman"],"director":"Quentin Tarantino","release_year":1994,"content_rating":"R"}]};
+
+const ALL_MOVIES = (() => {
+  const seen = new Set(), list = [];
+  Object.values(MOVIES_BY_GENRE).flat().forEach(m => {
+    if (!seen.has(m.tmdb_id)) { seen.add(m.tmdb_id); list.push(m); }
+  });
+  return list;
+})();
+
+const MOVIE_MAP = Object.fromEntries(ALL_MOVIES.map(m => [m.tmdb_id, m]));
+
+const GENRES = ['Action','Comedy','Drama','Horror','Thriller','Science Fiction','Animation','Romance','Adventure','Crime'];
+
+// ─── USER PROFILES ────────────────────────────────────────────────────────────
+const USERS = [
+  {id:'user_alex',   name:'Alex',   letter:'A', color:'#C0392B', preferences:['Action','Science Fiction','Thriller'],   persona:'High-octane action and mind-bending sci-fi thrillers'},
+  {id:'user_jordan', name:'Jordan', letter:'J', color:'#1A5276', preferences:['Drama','Crime','Romance'],               persona:'Character-driven drama and complex crime narratives'},
+  {id:'user_sam',    name:'Sam',    letter:'S', color:'#1E8449', preferences:['Horror','Thriller','Mystery'],            persona:'Psychological horror and edge-of-seat suspense'},
+  {id:'user_morgan', name:'Morgan', letter:'M', color:'#B7770D', preferences:['Animation','Comedy','Adventure'],        persona:'Feel-good animations and laugh-out-loud comedies'},
+];
+
+// ─── INTERACTION TRACKER ──────────────────────────────────────────────────────
+class InteractionTracker {
+  constructor(userId) {
+    this.userId = userId;
+    this.storageKey = `rflix_events_${userId}`;
+    this.listeners = [];
+    try { this.events = JSON.parse(localStorage.getItem(this.storageKey) || '[]'); }
+    catch { this.events = []; }
+  }
+  track(type, data = {}) {
+    const ev = { type, ts: Date.now(), ...data };
+    this.events.push(ev);
+    if (this.events.length > 200) this.events = this.events.slice(-200);
+    try { localStorage.setItem(this.storageKey, JSON.stringify(this.events)); } catch {}
+    this.listeners.forEach(fn => fn(ev));
+    return ev;
+  }
+  onEvent(fn) { this.listeners.push(fn); return () => { this.listeners = this.listeners.filter(l => l !== fn); }; }
+  getRecent(n = 40) { return this.events.slice(-n); }
+  clear() { this.events = []; try { localStorage.removeItem(this.storageKey); } catch {} }
+  getSummary() {
+    const genreScore = {}, watchedIds = new Set(), hoveredLong = [];
+    this.events.forEach(e => {
+      (e.genres || []).forEach(g => genreScore[g] = (genreScore[g] || 0) + (e.type === 'watch_milestone' ? 3 : e.type === 'hover' ? (e.dwell > 3 ? 2 : 0.5) : 1));
+      if (e.type === 'watch_milestone' && e.pct >= 75) watchedIds.add(e.tmdb_id);
+      if (e.type === 'hover' && e.dwell > 3) hoveredLong.push(e.title);
+    });
+    return { genreScore, watchedIds, hoveredLong };
+  }
+}
+
+const TRACKERS = {};
+const getTracker = userId => { if (!TRACKERS[userId]) TRACKERS[userId] = new InteractionTracker(userId); return TRACKERS[userId]; };
+
+// ─── CLAUDE AI RECOMMENDATIONS ────────────────────────────────────────────────
+async function fetchAIRecs(user, tracker, apiKey) {
+  const recent = tracker.getRecent(40);
+  const { genreScore, watchedIds } = tracker.getSummary();
+
+  const topGenres = Object.entries(genreScore).sort((a,b) => b[1]-a[1]).slice(0,4).map(([g]) => g);
+
+  const candidates = ALL_MOVIES
+    .filter(m => !watchedIds.has(m.tmdb_id))
+    .sort((a, b) => {
+      const scoreA = (a.genres || []).filter(g => topGenres.includes(g)).length * 2 + (a.rating || 0) * 0.1;
+      const scoreB = (b.genres || []).filter(g => topGenres.includes(g)).length * 2 + (b.rating || 0) * 0.1;
+      return scoreB - scoreA;
+    })
+    .slice(0, 50);
+
+  const interactionLines = recent.map(e => {
+    if (e.type === 'hover' && e.dwell > 1) return `• Hovered "${e.title}" (${(e.genres||[]).join('/')}) for ${e.dwell.toFixed(1)}s`;
+    if (e.type === 'movie_play') return `• Opened "${e.title}" (${(e.genres||[]).join('/')})`;
+    if (e.type === 'watch_milestone') return `• Watched "${e.title}" to ${e.pct}%${e.pct >= 100 ? ' ✓ COMPLETED' : ''}`;
+    if (e.type === 'rewind') return `• Rewound "${e.title}" (${e.count}× — high interest signal)`;
+    if (e.type === 'genre_scroll') return `• Scrolled through ${e.genre} row`;
+    if (e.type === 'search') return `• Searched: "${e.query}"`;
+    return null;
+  }).filter(Boolean).join('\n');
+
+  const prompt = `You are RecoFlix's AI engine. Recommend movies based on real user behavior.
+
+USER: ${user.name}
+BASE PREFERENCES: ${user.preferences.join(', ')}
+TOP ENGAGED GENRES THIS SESSION: ${topGenres.join(', ') || 'None yet — use base preferences'}
+
+RECENT BEHAVIOR:
+${interactionLines || '(No interactions yet — recommend based on preferences)'}
+
+CANDIDATES (pick 6):
+${candidates.map(m => `[${m.tmdb_id}] "${m.title}" | ${(m.genres||[]).join('/')} | ⭐${m.rating} | ${m.runtime}min`).join('\n')}
+
+Recommend 6 movies. Reference SPECIFIC interactions in your reasons (e.g. "You rewound X 3 times — Y has similar..."). Keep reasons under 65 characters.
+
+Respond ONLY with valid JSON, no markdown:
+[{"tmdb_id":"...","reason":"..."}]`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  const data = await resp.json();
+  let text = data.content?.[0]?.text || '[]';
+  text = text.replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(text);
+  return parsed.map(r => ({ ...MOVIE_MAP[r.tmdb_id], reason: r.reason })).filter(m => m && m.title);
+}
+
+// ─── FALLBACK RECOMMENDATIONS ─────────────────────────────────────────────────
+function getFallbackRecs(user, tracker) {
+  const { genreScore, watchedIds } = tracker.getSummary();
+  const topGenres = Object.entries(genreScore).sort((a,b) => b[1]-a[1]).slice(0,3).map(([g]) => g);
+  const activeGenres = topGenres.length ? topGenres : user.preferences;
+  return ALL_MOVIES
+    .filter(m => !watchedIds.has(m.tmdb_id) && (m.genres||[]).some(g => activeGenres.includes(g)))
+    .sort((a,b) => (b.rating||0) - (a.rating||0))
+    .slice(0, 6)
+    .map(m => ({ ...m, reason: `Matches your ${activeGenres[0] || 'top'} genre interest` }));
+}
+
+// ─── COMPONENTS ───────────────────────────────────────────────────────────────
+
+// API Key Modal
+function ApiKeyModal({ onSave }) {
+  const [key, setKey] = useState('');
+  const [err, setErr] = useState('');
+  const submit = () => {
+    if (!key.trim().startsWith('sk-ant-')) { setErr('Invalid key — must start with sk-ant-'); return; }
+    onSave(key.trim());
+  };
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
+      <div style={{background:'#141414',border:'1px solid rgba(255,255,255,0.1)',borderRadius:16,padding:'36px 32px',maxWidth:440,width:'100%',animation:'fadeUp 0.4s ease'}}>
+        <div style={{color:'#E50914',fontSize:22,fontWeight:800,letterSpacing:'0.08em',marginBottom:6}}>RECOFLIX</div>
+        <div style={{fontSize:20,fontWeight:700,marginBottom:8}}>Add Your Claude API Key</div>
+        <p style={{color:'#888',fontSize:13,lineHeight:1.6,marginBottom:20}}>
+          RecoFlix uses Claude AI to generate personalized recommendations based on your real viewing behavior. Your key is stored only in your browser.
+        </p>
+        <div style={{background:'rgba(229,9,20,0.08)',border:'1px solid rgba(229,9,20,0.2)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:12,color:'#f87171'}}>
+          Get your key at <b>console.anthropic.com</b> → API Keys
+        </div>
+        <input
+          type="password" value={key} onChange={e => setKey(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+          placeholder="sk-ant-api03-..."
+          style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'10px 14px',color:'#fff',fontSize:13,outline:'none',marginBottom:8}}
+        />
+        {err && <p style={{color:'#f87171',fontSize:12,marginBottom:8}}>{err}</p>}
+        <button onClick={submit} style={{width:'100%',padding:'11px',background:'#E50914',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:700}}>
+          Start Watching →
+        </button>
+        <p style={{color:'#444',fontSize:11,textAlign:'center',marginTop:12}}>
+          Key saved locally · Never sent to our servers
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Telemetry Toast
+function TelemetryToast({ events }) {
+  const [visible, setVisible] = useState([]);
+  const timerRef = useRef({});
+
+  useEffect(() => {
+    if (!events.length) return;
+    const last = events[events.length - 1];
+    const id = last.ts;
+    const labels = {
+      hover: e => e.dwell > 1 ? `👁 Hovered "${(e.title||'').slice(0,20)}" · ${e.dwell.toFixed(1)}s` : null,
+      movie_play: e => `▶ Playing "${(e.title||'').slice(0,22)}"`,
+      watch_milestone: e => `📊 ${e.pct}% watched · "${(e.title||'').slice(0,18)}"`,
+      rewind: e => `⏪ Rewind #${e.count} tracked`,
+      genre_scroll: e => `🎬 Browsed ${e.genre}`,
+      search: e => `🔍 Searched "${e.query}"`,
+      fast_forward: e => `⏩ Skipped ahead · noted`,
+    };
+    const fn = labels[last.type];
+    const label = fn ? fn(last) : null;
+    if (!label) return;
+    setVisible(v => [...v.slice(-2), { id, label }]);
+    timerRef.current[id] = setTimeout(() => {
+      setVisible(v => v.filter(x => x.id !== id));
+    }, 3000);
+    return () => clearTimeout(timerRef.current[id]);
+  }, [events]);
+
+  return (
+    <div style={{position:'fixed',bottom:20,right:20,zIndex:500,display:'flex',flexDirection:'column',gap:6,pointerEvents:'none'}}>
+      {visible.map(t => (
+        <div key={t.id} style={{background:'rgba(20,20,20,0.96)',border:'1px solid rgba(229,9,20,0.3)',borderRadius:8,padding:'7px 13px',fontSize:12,color:'#ccc',backdropFilter:'blur(10px)',animation:'slideIn 0.3s ease',whiteSpace:'nowrap'}}>
+          <span style={{color:'#E50914',fontWeight:700}}>TRACKED</span> {t.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Movie Poster
+function Poster({ movie, style = {} }) {
+  const [err, setErr] = useState(false);
+  if (movie?.poster_url && !err) {
+    return <img src={movie.poster_url} alt={movie.title} style={{ ...style, display: 'block' }} onError={() => setErr(true)} />;
+  }
+  const g = (movie?.genres || [])[0] || '';
+  const colors = { Action:'#7f1d1d', Comedy:'#14532d', Drama:'#1e3a5f', Horror:'#1a0a2e', Thriller:'#1c1917', 'Science Fiction':'#0c1a2e', Animation:'#1a2e0c', Romance:'#3d1a2e', Adventure:'#1a2e1a', Crime:'#2e1a0c' };
+  return (
+    <div style={{ ...style, background: colors[g] || '#1c1c1c', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:8 }}>
+      <div style={{ fontSize: 32, marginBottom: 6 }}>🎬</div>
+      <div style={{ color:'#bbb', fontSize:11, textAlign:'center', fontWeight:600, lineHeight:1.3 }}>{movie?.title}</div>
+    </div>
+  );
+}
+
+// Movie Card
+function MovieCard({ movie, onPlay, tracker, showReason = false }) {
+  const [hov, setHov] = useState(false);
+  const dwellStart = useRef(null);
+
+  const handleEnter = () => {
+    setHov(true);
+    dwellStart.current = Date.now();
+  };
+  const handleLeave = () => {
+    setHov(false);
+    if (dwellStart.current) {
+      const dwell = (Date.now() - dwellStart.current) / 1000;
+      if (dwell > 0.5) tracker?.track('hover', { title: movie.title, tmdb_id: movie.tmdb_id, genres: movie.genres, dwell: +dwell.toFixed(2) });
+      dwellStart.current = null;
+    }
+  };
+  const handlePlay = e => {
+    e?.stopPropagation();
+    tracker?.track('movie_play', { title: movie.title, tmdb_id: movie.tmdb_id, genres: movie.genres });
+    onPlay(movie);
+  };
+
+  return (
+    <div
+      style={{ width: 160, flexShrink: 0, cursor: 'pointer', position: 'relative', transition: 'transform 0.25s', transform: hov ? 'scale(1.08)' : 'scale(1)', zIndex: hov ? 10 : 1 }}
+      onMouseEnter={handleEnter} onMouseLeave={handleLeave} onClick={handlePlay}
+    >
+      <div style={{ borderRadius: 8, overflow: 'hidden', aspectRatio: '2/3', background: '#1a1a1a', boxShadow: hov ? '0 8px 32px rgba(0,0,0,0.7)' : 'none', transition: 'box-shadow 0.25s' }}>
+        <Poster movie={movie} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+      </div>
+      {hov && (
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, borderRadius:'0 0 8px 8px', padding:'32px 8px 8px', background:'linear-gradient(to top,#000 60%,transparent)', animation:'fadeIn 0.15s' }}>
+          <p style={{ color:'#fff', fontSize:12, fontWeight:700, marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{movie.title}</p>
+          <p style={{ color:'#aaa', fontSize:11, marginBottom:3 }}>{(movie.genres||[]).slice(0,2).join(' · ')}</p>
+          {movie.rating > 0 && <p style={{ color:'#f5c518', fontSize:11, marginBottom: showReason ? 3 : 5 }}>★ {movie.rating} {movie.runtime ? `· ${movie.runtime}m` : ''}</p>}
+          {showReason && movie.reason && <p style={{ color:'#60a5fa', fontSize:10, marginBottom:5, lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{movie.reason}</p>}
+          <button onClick={handlePlay} style={{ width:'100%', padding:'5px 0', background:'#E50914', color:'#fff', border:'none', borderRadius:4, fontSize:12, fontWeight:700 }}>▶ Play</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Movie Row
+function MovieRow({ title, movies, loading, onPlay, tracker, showReason = false, accent = false }) {
+  const rowRef = useRef(null);
+  const scroll = d => rowRef.current?.scrollBy({ left: d * 540, behavior: 'smooth' });
+
+  useEffect(() => {
+    if (!loading && movies.length && tracker) {
+      const genre = title.replace('⭐ For You — AI Picks', 'AI Recommendations');
+      // track scroll when row becomes visible (simplified)
+    }
+  }, [loading]);
+
+  return (
+    <div style={{ marginBottom: 36 }}>
+      <h2 style={{ color: accent ? '#E50914' : '#ccc', fontSize: 15, fontWeight: accent ? 800 : 700, margin: '0 0 10px 44px', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {title}
+        {accent && <span style={{ background: 'rgba(229,9,20,0.15)', color: '#E50914', fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em' }}>AI POWERED</span>}
+      </h2>
+      <div style={{ position: 'relative' }}>
+        <button onClick={() => scroll(-1)} style={{ position:'absolute', left:0, top:0, bottom:0, width:40, background:'rgba(8,8,8,0.85)', border:'none', color:'#fff', fontSize:22, zIndex:4, opacity:0.8 }}>‹</button>
+        <div ref={rowRef} style={{ display:'flex', gap:10, overflowX:'auto', padding:'4px 44px 10px', scrollbarWidth:'none' }}>
+          {loading
+            ? Array(7).fill(0).map((_, i) => <div key={i} className="skeleton" style={{ width:160, flexShrink:0, aspectRatio:'2/3', borderRadius:8 }} />)
+            : movies.map(m => <MovieCard key={m.tmdb_id} movie={m} onPlay={onPlay} tracker={tracker} showReason={showReason} />)
+          }
+        </div>
+        <button onClick={() => scroll(1)} style={{ position:'absolute', right:0, top:0, bottom:0, width:40, background:'rgba(8,8,8,0.85)', border:'none', color:'#fff', fontSize:22, zIndex:4, opacity:0.8 }}>›</button>
+      </div>
+    </div>
+  );
+}
+
+// Video Player
+function Player({ user, movie, onBack, tracker, apiKey, toastEvents, setToastEvents }) {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [rewindCount, setRewindCount] = useState(0);
+  const [showCtrl, setShowCtrl] = useState(true);
+  const [volume, setVolume] = useState(75);
+  const [recs, setRecs] = useState([]);
+  const [recsLoading, setRecsLoading] = useState(false);
+  const [milestones, setMilestones] = useState(new Set());
+  const [aiStatus, setAiStatus] = useState('');
+  const DURATION = 90;
+
+  const ivl = useRef(null);
+  const ctrlTimer = useRef(null);
+  const progressRef = useRef(0);
+  const rewindRef = useRef(0);
+
+  const pushToast = useCallback(ev => setToastEvents(prev => [...prev, ev]), []);
+
+  const resetCtrl = useCallback(() => {
+    setShowCtrl(true);
+    clearTimeout(ctrlTimer.current);
+    ctrlTimer.current = setTimeout(() => setShowCtrl(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    resetCtrl();
+    return () => { clearInterval(ivl.current); clearTimeout(ctrlTimer.current); };
+  }, []);
+
+  useEffect(() => {
+    if (!playing) { clearInterval(ivl.current); return; }
+    ivl.current = setInterval(() => {
+      setProgress(p => {
+        const np = Math.min(p + 100 / (DURATION * 4), 100);
+        progressRef.current = np;
+        [10, 25, 50, 75, 100].forEach(ms => {
+          if (np >= ms && !milestones.has(ms)) {
+            setMilestones(prev => new Set([...prev, ms]));
+            const ev = tracker.track('watch_milestone', { title: movie.title, tmdb_id: movie.tmdb_id, genres: movie.genres, pct: ms });
+            pushToast(ev);
+            if (ms === 25) loadRecs();
+          }
+        });
+        if (np >= 100) { clearInterval(ivl.current); setPlaying(false); }
+        return np;
+      });
+    }, 250);
+    return () => clearInterval(ivl.current);
+  }, [playing]);
+
+  const loadRecs = async () => {
+    setRecsLoading(true);
+    setAiStatus('Analyzing your behavior...');
+    try {
+      if (apiKey) {
+        const r = await fetchAIRecs(user, tracker, apiKey);
+        setRecs(r); setAiStatus('AI picks updated');
+      } else {
+        setRecs(getFallbackRecs(user, tracker)); setAiStatus('Smart picks ready');
+      }
+    } catch {
+      setRecs(getFallbackRecs(user, tracker)); setAiStatus('Picks based on your taste');
+    }
+    setRecsLoading(false);
+  };
+
+  const doRewind = e => {
+    e?.stopPropagation();
+    const n = rewindRef.current + 1;
+    rewindRef.current = n;
+    setRewindCount(n);
+    setProgress(p => Math.max(0, p - 8));
+    const ev = tracker.track('rewind', { title: movie.title, tmdb_id: movie.tmdb_id, genres: movie.genres, count: n });
+    pushToast(ev);
+  };
+
+  const doFF = e => {
+    e?.stopPropagation();
+    setProgress(p => Math.min(p + 8, 100));
+    const ev = tracker.track('fast_forward', { title: movie.title, tmdb_id: movie.tmdb_id });
+    pushToast(ev);
+  };
+
+  const fmt = pct => { const s = (pct / 100) * DURATION * 60; return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`; };
+  const pct = Math.round(progress);
+
+  return (
+    <div style={{ display:'flex', minHeight:'100vh', background:'#000' }} onMouseMove={resetCtrl}>
+      {/* Left — video area */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', minWidth:0 }} onClick={() => { setPlaying(p => !p); resetCtrl(); }}>
+        {/* Screen */}
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', minHeight:400, position:'relative' }}>
+          {movie.backdrop_url && (
+            <img src={movie.backdrop_url} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity: playing ? 0.18 : 0.35, filter:'blur(2px)', transition:'opacity 0.5s' }} />
+          )}
+          <div style={{ position:'relative', zIndex:1, textAlign:'center' }}>
+            {!playing && progress === 0 && (
+              <div style={{ animation:'fadeUp 0.4s ease' }}>
+                <div style={{ width:100, height:150, margin:'0 auto 16px', borderRadius:8, overflow:'hidden' }}><Poster movie={movie} style={{ width:'100%', height:'100%', objectFit:'cover' }} /></div>
+                <h2 style={{ fontSize:26, fontWeight:800, marginBottom:6 }}>{movie.title}</h2>
+                <p style={{ color:'#888', fontSize:13, marginBottom:8 }}>{(movie.genres||[]).join(' · ')} {movie.runtime ? `· ${movie.runtime}m` : ''} {movie.release_year ? `· ${movie.release_year}` : ''}</p>
+                {movie.overview && <p style={{ color:'#aaa', fontSize:13, lineHeight:1.6, marginBottom:22, maxWidth:460, margin:'0 auto 22px' }}>{movie.overview.slice(0,160)}…</p>}
+                <div style={{ width:64, height:64, borderRadius:'50%', border:'3px solid rgba(255,255,255,0.8)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto', fontSize:26, cursor:'pointer' }}>▶</div>
+              </div>
+            )}
+            {playing && <div style={{ fontSize:52, opacity: showCtrl ? 1 : 0, transition:'opacity 0.3s', filter:'drop-shadow(0 0 20px rgba(0,0,0,0.8))' }}>⏸</div>}
+            {!playing && progress > 0 && progress < 100 && (
+              <div>
+                <div style={{ fontSize:52, marginBottom:8 }}>⏸</div>
+                <p style={{ color:'#666', fontSize:13 }}>{pct}% watched · Click to resume</p>
+              </div>
+            )}
+            {progress >= 100 && (
+              <div style={{ animation:'fadeUp 0.4s ease' }}>
+                <div style={{ fontSize:52, marginBottom:12 }}>✅</div>
+                <h3 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>Watched!</h3>
+                <p style={{ color:'#555', fontSize:13, marginBottom:22 }}>Your recommendations have been updated</p>
+                <button onClick={e => { e.stopPropagation(); onBack(); }} style={{ padding:'10px 28px', background:'#E50914', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700 }}>← Back to Browse</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Controls */}
+        {showCtrl && progress < 100 && (
+          <div style={{ padding:'8px 20px 20px', background:'linear-gradient(transparent,rgba(0,0,0,0.95))' }} onClick={e => e.stopPropagation()}>
+            {/* Progress bar */}
+            <div style={{ height:4, background:'#333', borderRadius:2, marginBottom:12, cursor:'pointer', position:'relative' }}
+              onClick={e => { const r=e.currentTarget.getBoundingClientRect(); setProgress(Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100))); }}>
+              <div style={{ height:'100%', width:`${pct}%`, background:'#E50914', borderRadius:2, transition:'width 0.25s' }} />
+              <div style={{ position:'absolute', top:'50%', left:`${pct}%`, transform:'translate(-50%,-50%)', width:12, height:12, borderRadius:'50%', background:'#fff', boxShadow:'0 0 6px rgba(229,9,20,0.8)' }} />
+            </div>
+            {/* Buttons */}
+            <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+              <button onClick={() => setPlaying(p => !p)} style={{ background:'none', border:'none', color:'#fff', fontSize:24, padding:0 }}>{playing ? '⏸' : '▶'}</button>
+              <button onClick={doRewind} style={{ background:'none', border:'none', color:'#fff', fontSize:18, padding:0 }} title="Rewind (tracked)">⏪</button>
+              <button onClick={doFF} style={{ background:'none', border:'none', color:'#fff', fontSize:18, padding:0 }} title="Fast Forward (tracked)">⏩</button>
+              <span style={{ color:'#888', fontSize:12 }}>{fmt(pct)} / {DURATION}:00</span>
+              {rewindCount > 0 && <span style={{ color:'#fbbf24', fontSize:11, background:'rgba(251,191,36,0.1)', padding:'2px 8px', borderRadius:4 }}>⏪ {rewindCount} rewind{rewindCount > 1 ? 's' : ''} logged</span>}
+              <input type="range" min={0} max={100} value={volume} onChange={e => setVolume(+e.target.value)} style={{ width:70 }} onClick={e => e.stopPropagation()} />
+              <div style={{ flex:1 }} />
+              <span style={{ color:'#333', fontSize:11 }}>{pct}%</span>
+              <button onClick={e => { e.stopPropagation(); onBack(); }} style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', color:'#fff', padding:'4px 14px', borderRadius:6, fontSize:12 }}>← Exit</button>
+            </div>
+          </div>
+        )}
+
+        {/* Top bar */}
+        <div style={{ position:'absolute', top:0, left:0, right:0, padding:'14px 20px', display:'flex', alignItems:'center', gap:12, background:'linear-gradient(rgba(0,0,0,0.7),transparent)' }} onClick={e => e.stopPropagation()}>
+          <button onClick={onBack} style={{ background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,255,255,0.15)', color:'#fff', padding:'5px 14px', borderRadius:6, fontSize:12, fontWeight:600 }}>← Back</button>
+          <span style={{ fontSize:14, fontWeight:700, color:'#ddd' }}>{movie.title}</span>
+          {movie.rating > 0 && <span style={{ color:'#f5c518', fontSize:12 }}>★ {movie.rating}</span>}
+          <div style={{ flex:1 }} />
+          <div style={{ width:30, height:30, borderRadius:6, background:user.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800 }}>{user.letter}</div>
+        </div>
+      </div>
+
+      {/* Right — recommendations sidebar */}
+      <div style={{ width:280, background:'#0d0d0d', borderLeft:'1px solid #1e1e1e', display:'flex', flexDirection:'column', flexShrink:0, overflowY:'auto' }}>
+        <div style={{ padding:'14px 16px', borderBottom:'1px solid #1e1e1e' }}>
+          <h3 style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>Up Next · {user.name}</h3>
+          <p style={{ color:'#333', fontSize:11 }}>
+            {aiStatus || (recs.length ? 'Claude AI · Based on your behavior' : 'Watch to 25% to unlock AI picks')}
+          </p>
+        </div>
+
+        {/* Progress to unlock */}
+        {!recs.length && !recsLoading && (
+          <div style={{ padding:'20px 14px', textAlign:'center' }}>
+            <div style={{ fontSize:28, marginBottom:8 }}>🎯</div>
+            <p style={{ color:'#444', fontSize:12, lineHeight:1.6, marginBottom:12 }}>Watch to 25% to unlock personalized AI recommendations</p>
+            <div style={{ height:4, background:'#1a1a1a', borderRadius:2, marginBottom:6 }}>
+              <div style={{ height:'100%', width:`${Math.min(pct * 4, 100)}%`, background:'#E50914', borderRadius:2, transition:'width 0.8s' }} />
+            </div>
+            <p style={{ color:'#333', fontSize:11 }}>{Math.min(pct, 25)}/25%</p>
+          </div>
+        )}
+
+        {recsLoading && Array(5).fill(0).map((_,i) => (
+          <div key={i} className="skeleton" style={{ height:76, margin:'6px 10px', borderRadius:8 }} />
+        ))}
+
+        {!recsLoading && recs.length > 0 && (
+          <div style={{ padding:10 }}>
+            <p style={{ color:'#2a5a2a', fontSize:10, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10, padding:'3px 8px', background:'rgba(42,90,42,0.15)', borderRadius:4, display:'inline-block' }}>✦ Claude AI Updated</p>
+            {recs.map(m => (
+              <div key={m.tmdb_id} style={{ display:'flex', gap:8, padding:8, borderRadius:8, marginBottom:6, cursor:'pointer', transition:'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background='#1a1a1a'}
+                onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                onClick={() => { tracker.track('recommendation_click', { title: m.title, tmdb_id: m.tmdb_id }); onBack(); }}>
+                <div style={{ width:46, flexShrink:0, borderRadius:4, overflow:'hidden', aspectRatio:'2/3' }}><Poster movie={m} style={{ width:'100%', height:'100%', objectFit:'cover' }} /></div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontSize:12, fontWeight:600, marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.title}</p>
+                  <p style={{ color:'#555', fontSize:11, marginBottom:3 }}>{(m.genres||[]).slice(0,2).join(' · ')}</p>
+                  {m.reason && <p style={{ color:'#60a5fa', fontSize:10, lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{m.reason}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Profile Select
+function ProfileSelect({ onSelect }) {
+  const [hov, setHov] = useState(null);
+  const [showKey, setShowKey] = useState(false);
+  const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem('rflix_api_key') || ''; } catch { return ''; } });
+  const [pendingUser, setPendingUser] = useState(null);
+
+  const handleSelect = user => {
+    if (!apiKey) { setPendingUser(user); setShowKey(true); }
+    else onSelect(user, apiKey);
+  };
+  const handleSaveKey = key => {
+    try { localStorage.setItem('rflix_api_key', key); } catch {}
+    setApiKey(key);
+    setShowKey(false);
+    if (pendingUser) { onSelect(pendingUser, key); setPendingUser(null); }
+  };
+  const skipKey = () => { setShowKey(false); if (pendingUser) { onSelect(pendingUser, ''); setPendingUser(null); } };
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#080808', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:32 }}>
+      {showKey && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.88)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:999, padding:20 }}>
+          <div style={{ background:'#141414', border:'1px solid rgba(255,255,255,0.1)', borderRadius:16, padding:'32px 28px', maxWidth:430, width:'100%', animation:'fadeUp 0.4s ease' }}>
+            <div style={{ color:'#E50914', fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:'0.1em', marginBottom:4 }}>RECOFLIX</div>
+            <div style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Claude API Key</div>
+            <p style={{ color:'#666', fontSize:13, lineHeight:1.6, marginBottom:16 }}>Enter your Claude API key to enable AI-powered personalized recommendations. Without it, smart fallback recommendations will be used.</p>
+            <ApiKeyModal onSave={handleSaveKey} />
+            <button onClick={skipKey} style={{ width:'100%', marginTop:10, padding:'9px', background:'transparent', border:'1px solid rgba(255,255,255,0.1)', color:'#666', borderRadius:8, fontSize:13, cursor:'pointer' }}>
+              Skip — use smart fallback recommendations
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontFamily:"'Bebas Neue',sans-serif", color:'#E50914', fontSize:40, letterSpacing:'0.15em', marginBottom:8, animation:'fadeUp 0.5s ease' }}>RECOFLIX</div>
+      <p style={{ color:'#555', fontSize:16, marginBottom:48, animation:'fadeUp 0.5s ease 0.1s both' }}>Who's watching?</p>
+
+      <div style={{ display:'flex', gap:32, flexWrap:'wrap', justifyContent:'center', marginBottom:52, animation:'fadeUp 0.5s ease 0.2s both' }}>
+        {USERS.map(u => (
+          <div key={u.id} style={{ display:'flex', flexDirection:'column', alignItems:'center', cursor:'pointer' }}
+            onMouseEnter={() => setHov(u.id)} onMouseLeave={() => setHov(null)} onClick={() => handleSelect(u)}>
+            <div style={{ width:120, height:120, borderRadius:12, background:u.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:48, fontWeight:800, color:'#fff', marginBottom:12, transition:'all 0.25s', transform: hov===u.id ? 'scale(1.1)' : 'scale(1)', boxShadow: hov===u.id ? `0 0 32px ${u.color}88` : 'none' }}>{u.letter}</div>
+            <p style={{ color: hov===u.id ? '#fff' : '#777', fontSize:15, fontWeight:600, marginBottom:3, transition:'color 0.2s' }}>{u.name}</p>
+            <p style={{ color:'#2a2a2a', fontSize:11 }}>{u.preferences.slice(0,2).join(', ')}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ textAlign:'center', borderTop:'1px solid #141414', paddingTop:24, maxWidth:480, animation:'fadeUp 0.5s ease 0.3s both' }}>
+        {apiKey
+          ? <p style={{ color:'#2a5a2a', fontSize:12 }}>✓ Claude AI active · Recommendations powered by real-time behavior analysis</p>
+          : <p style={{ color:'#2a2a2a', fontSize:12 }}>Select a profile to start · Add a Claude API key for AI-powered recommendations</p>
+        }
+        {apiKey && <button onClick={() => { try { localStorage.removeItem('rflix_api_key'); } catch {} setApiKey(''); }} style={{ marginTop:8, background:'none', border:'none', color:'#333', fontSize:11, cursor:'pointer', textDecoration:'underline' }}>Change API key</button>}
+      </div>
+    </div>
+  );
+}
+
+// Browse
+function Browse({ user, apiKey, onPlay, onLogout }) {
+  const tracker = useMemo(() => getTracker(user.id), [user.id]);
+  const [aiRecs, setAiRecs] = useState([]);
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiStatus, setAiStatus] = useState('');
+  const [genreRows, setGenreRows] = useState({});
+  const [hero, setHero] = useState(null);
+  const [search, setSearch] = useState('');
+  const [searchRes, setSearchRes] = useState([]);
+  const [toastEvents, setToastEvents] = useState([]);
+  const debounceTimer = useRef(null);
+  const recTimer = useRef(null);
+
+  // Load genre rows from embedded data
+  useEffect(() => {
+    const rows = {};
+    GENRES.forEach(g => { rows[g] = MOVIES_BY_GENRE[g] || []; });
+    setGenreRows(rows);
+    // Pick hero: high-rated movie with backdrop
+    const heroMovies = ALL_MOVIES.filter(m => m.backdrop_url && m.rating >= 7.5).sort((a,b) => b.rating - a.rating);
+    setHero(heroMovies[0] || ALL_MOVIES[0]);
+  }, []);
+
+  // Load initial AI recs
+  useEffect(() => {
+    loadAIRecs();
+    // Listen for tracker events to auto-refresh
+    const unsub = tracker.onEvent(() => {
+      clearTimeout(recTimer.current);
+      recTimer.current = setTimeout(loadAIRecs, 6000);
+    });
+    return () => { unsub(); clearTimeout(recTimer.current); };
+  }, [user.id]);
+
+  const loadAIRecs = async () => {
+    setAiLoading(true);
+    setAiStatus(apiKey ? 'Claude is analyzing your behavior…' : 'Finding your picks…');
+    try {
+      if (apiKey) {
+        const r = await fetchAIRecs(user, tracker, apiKey);
+        if (r.length) { setAiRecs(r); setHero(r[0]); setAiStatus(''); }
+        else throw new Error('empty');
+      } else {
+        const r = getFallbackRecs(user, tracker);
+        setAiRecs(r); if (r.length) setHero(r[0]); setAiStatus('');
+      }
+    } catch {
+      const r = getFallbackRecs(user, tracker);
+      setAiRecs(r); if (r.length) setHero(r[0]); setAiStatus('');
+    }
+    setAiLoading(false);
+  };
+
+  const handleSearch = val => {
+    setSearch(val);
+    clearTimeout(debounceTimer.current);
+    if (!val.trim()) { setSearchRes([]); return; }
+    debounceTimer.current = setTimeout(() => {
+      const q = val.toLowerCase();
+      const res = ALL_MOVIES.filter(m =>
+        m.title.toLowerCase().includes(q) ||
+        (m.genres||[]).some(g => g.toLowerCase().includes(q)) ||
+        (m.overview||'').toLowerCase().includes(q) ||
+        (m.cast||[]).some(c => c.toLowerCase().includes(q)) ||
+        (m.director||'').toLowerCase().includes(q)
+      ).slice(0, 10);
+      setSearchRes(res);
+      tracker.track('search', { query: val });
+    }, 400);
+  };
+
+  const handlePlay = movie => {
+    tracker.track('movie_play', { title: movie.title, tmdb_id: movie.tmdb_id, genres: movie.genres });
+    onPlay(movie);
+  };
+
+  const handleGenreScroll = genre => {
+    const ev = tracker.track('genre_scroll', { genre });
+    setToastEvents(prev => [...prev, ev]);
+  };
+
+  const moodFilters = [
+    { label: '⚡ Something intense', genres: ['Action', 'Thriller'] },
+    { label: '😂 Feel-good comedy', genres: ['Comedy', 'Animation'] },
+    { label: '😱 Horror night', genres: ['Horror', 'Thriller'] },
+    { label: '🌌 Mind-bending', genres: ['Science Fiction'] },
+    { label: '💔 Emotional drama', genres: ['Drama', 'Romance'] },
+    { label: '🔍 Crime thriller', genres: ['Crime', 'Thriller'] },
+  ];
+
+  const applyMood = (genres) => {
+    const res = ALL_MOVIES.filter(m => (m.genres||[]).some(g => genres.includes(g))).sort((a,b) => b.rating - a.rating).slice(0, 10);
+    setSearchRes(res);
+    const ev = tracker.track('search', { query: genres.join(' / ') });
+    setToastEvents(prev => [...prev, ev]);
+  };
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#080808' }}>
+      <TelemetryToast events={toastEvents} />
+
+      {/* Navbar */}
+      <nav style={{ position:'sticky', top:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 36px', background:'rgba(8,8,8,0.97)', borderBottom:'1px solid #141414' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:32 }}>
+          <span style={{ fontFamily:"'Bebas Neue',sans-serif", color:'#E50914', fontSize:24, letterSpacing:'0.12em' }}>RECOFLIX</span>
+          {['Home','Movies','My List'].map(l => <a key={l} style={{ color:'#888', fontSize:13, cursor:'pointer', textDecoration:'none' }}>{l}</a>)}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <div style={{ position:'relative' }}>
+            <input value={search} onChange={e => handleSearch(e.target.value)} placeholder="🔍  Search movies, genres, cast…"
+              style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:20, padding:'7px 16px', color:'#fff', fontSize:13, outline:'none', width:240 }} />
+            {searchRes.length > 0 && (
+              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#141414', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, marginTop:4, zIndex:100, maxHeight:320, overflowY:'auto' }}>
+                {searchRes.map(m => (
+                  <div key={m.tmdb_id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', cursor:'pointer', transition:'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background='#1e1e1e'}
+                    onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                    onClick={() => { setSearch(''); setSearchRes([]); handlePlay(m); }}>
+                    <div style={{ width:32, height:48, borderRadius:4, overflow:'hidden', flexShrink:0 }}><Poster movie={m} style={{ width:'100%', height:'100%', objectFit:'cover' }} /></div>
+                    <div>
+                      <p style={{ fontSize:12, fontWeight:600 }}>{m.title}</p>
+                      <p style={{ color:'#555', fontSize:11 }}>{(m.genres||[]).slice(0,2).join(' · ')} {m.rating > 0 ? `· ★ ${m.rating}` : ''}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {apiKey && <span style={{ background:'rgba(229,9,20,0.15)', color:'#E50914', fontSize:10, padding:'3px 8px', borderRadius:4, fontWeight:700 }}>AI ON</span>}
+          <div onClick={onLogout} title="Switch profile" style={{ width:34, height:34, borderRadius:8, background:user.color, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer' }}>{user.letter}</div>
+          <button onClick={onLogout} style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'#888', padding:'5px 12px', borderRadius:6, fontSize:12 }}>Switch</button>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      {hero && (
+        <div style={{ position:'relative', minHeight:460, display:'flex', alignItems:'flex-end', overflow:'hidden', marginBottom:8 }}>
+          {hero.backdrop_url && (
+            <img src={hero.backdrop_url} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', objectPosition:'center top', filter:'brightness(0.4)' }} />
+          )}
+          <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg, ${user.color}33 0%, transparent 60%)` }} />
+          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, transparent 30%, #080808 100%)' }} />
+          <div style={{ position:'relative', padding:'0 52px 48px', maxWidth:600, animation:'fadeUp 0.6s ease' }}>
+            {aiLoading ? (
+              <div>
+                <div className="skeleton" style={{ height:12, width:140, borderRadius:4, marginBottom:14 }} />
+                <div className="skeleton" style={{ height:36, width:300, borderRadius:4, marginBottom:12 }} />
+                <div className="skeleton" style={{ height:12, width:400, borderRadius:4 }} />
+              </div>
+            ) : (
+              <div>
+                <div style={{ color:'#E50914', fontSize:11, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>
+                  {apiKey ? '✦ AI Pick for ' : '⭐ Top Pick for '}{user.name}
+                </div>
+                <h1 style={{ fontSize: hero.title.length > 20 ? 34 : 42, fontWeight:800, margin:'0 0 8px', lineHeight:1.1, textShadow:'0 2px 20px rgba(0,0,0,0.8)' }}>{hero.title}</h1>
+                {hero.rating > 0 && <p style={{ color:'#f5c518', fontSize:13, marginBottom:6 }}>★ {hero.rating} {hero.runtime ? `· ${hero.runtime} min` : ''} {hero.release_year ? `· ${hero.release_year}` : ''}</p>}
+                <p style={{ color:'#ccc', fontSize:13, margin:'0 0 6px', lineHeight:1.6 }}>{hero.reason || hero.overview?.slice(0, 160)}</p>
+                {hero.cast?.length > 0 && <p style={{ color:'#555', fontSize:12, marginBottom:18 }}>Starring {hero.cast.slice(0,3).join(', ')}</p>}
+                <div style={{ display:'flex', gap:10 }}>
+                  <button onClick={() => handlePlay(hero)} style={{ padding:'10px 28px', background:'#E50914', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' }}>▶ Play</button>
+                  <button style={{ padding:'10px 20px', background:'rgba(255,255,255,0.12)', color:'#fff', border:'none', borderRadius:8, fontSize:14, cursor:'pointer' }}>ℹ More Info</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mood Quick Filters */}
+      <div style={{ padding:'4px 52px 20px', display:'flex', gap:8, flexWrap:'wrap' }}>
+        {moodFilters.map(f => (
+          <button key={f.label} onClick={() => applyMood(f.genres)} style={{ padding:'6px 14px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:20, color:'#ccc', fontSize:12, cursor:'pointer', transition:'all 0.2s' }}
+            onMouseEnter={e => { e.target.style.background='rgba(229,9,20,0.15)'; e.target.style.borderColor='rgba(229,9,20,0.4)'; }}
+            onMouseLeave={e => { e.target.style.background='rgba(255,255,255,0.06)'; e.target.style.borderColor='rgba(255,255,255,0.1)'; }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search results */}
+      {searchRes.length > 0 && search && (
+        <div style={{ padding:'0 0 12px' }}>
+          <MovieRow title={`Results for "${search}"`} movies={searchRes} loading={false} onPlay={handlePlay} tracker={tracker} />
+        </div>
+      )}
+
+      {/* AI Recommendations Row */}
+      <div onMouseEnter={() => handleGenreScroll('AI Recommendations')}>
+        <MovieRow title="⭐ For You — AI Picks" movies={aiRecs} loading={aiLoading} onPlay={handlePlay} tracker={tracker} showReason accent />
+      </div>
+
+      {/* Genre Rows */}
+      {GENRES.map(g => (
+        <div key={g} onMouseEnter={() => handleGenreScroll(g)}>
+          <MovieRow title={g} movies={genreRows[g] || []} loading={!genreRows[g]} onPlay={handlePlay} tracker={tracker} />
+        </div>
+      ))}
+
+      {/* Footer */}
+      <div style={{ padding:'24px 52px 48px', borderTop:'1px solid #141414' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+          <span style={{ fontFamily:"'Bebas Neue',sans-serif", color:'#333', fontSize:20, letterSpacing:'0.1em' }}>RECOFLIX</span>
+          <button onClick={() => { tracker.clear(); loadAIRecs(); }} style={{ background:'none', border:'1px solid #222', color:'#444', padding:'5px 14px', borderRadius:6, fontSize:11, cursor:'pointer' }}>Reset My History</button>
+        </div>
+        <p style={{ color:'#222', fontSize:11 }}>Interactions tracked in real-time · Recommendations powered by Claude AI · {ALL_MOVIES.length} movies from your dataset</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── ROOT APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [page, setPage] = useState('profiles');
+  const [user, setUser] = useState(null);
+  const [apiKey, setApiKey] = useState('');
+  const [movie, setMovie] = useState(null);
+  const [toastEvents, setToastEvents] = useState([]);
+
+  const handleSelectUser = (u, key) => { setUser(u); setApiKey(key); setPage('browse'); };
+  const handlePlay = m => { setMovie(m); setPage('player'); };
+  const handleBack = () => setPage('browse');
+  const handleLogout = () => { setUser(null); setMovie(null); setPage('profiles'); };
+
+  if (page === 'profiles') return <ProfileSelect onSelect={handleSelectUser} />;
+  if (page === 'player' && movie && user)
+    return <Player user={user} movie={movie} onBack={handleBack} tracker={getTracker(user.id)} apiKey={apiKey} toastEvents={toastEvents} setToastEvents={setToastEvents} />;
+  return <Browse user={user} apiKey={apiKey} onPlay={handlePlay} onLogout={handleLogout} />;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
