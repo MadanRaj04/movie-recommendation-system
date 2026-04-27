@@ -146,9 +146,7 @@ export default function Navbar({ onRefresh, refreshing }) {
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                   User ID: #{currentUser?.id}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                  {currentUser?.preferences?.join(' · ')}
-                </div>
+
               </div>
               <div style={{ padding: 8 }}>
                 <button

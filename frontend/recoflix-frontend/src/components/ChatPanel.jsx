@@ -51,7 +51,7 @@ export default function ChatPanel() {
     } catch (err) {
       setHistory(h => [...h, {
         role: 'assistant',
-        text: '⚠️ Could not connect to backend. Make sure the FastAPI server is running.',
+        text: 'Could not connect to backend. Make sure the FastAPI server is running.',
         error: true,
       }])
     } finally {

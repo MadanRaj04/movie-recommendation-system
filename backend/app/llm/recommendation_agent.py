@@ -1,6 +1,5 @@
 from langchain_ollama import OllamaLLM
 
-# Load local model
 llm = OllamaLLM(model="llama3.1:8b")
 
 def generate_explanation(user_history, recommended_movies):

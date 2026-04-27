@@ -20,9 +20,6 @@ def get_embedding(text):
 
 
 # How much each interaction type contributes to the user vector.
-# watch=1.0 so completing a movie strongly reinforces that direction;
-# click=0.2 is a weak signal. 4 milestones × 1.0 = 4.0 total per watched movie,
-# which is intentional: watched movies dominate over casual clicks.
 EVENT_WEIGHTS = {
     "click": 0.2,
     "play":  0.5,
@@ -63,7 +60,7 @@ def update_user_profile(db: Session, user_id: int, movie_text: str, weight: floa
 
 
 def worker():
-    print("🚀 Worker started...")
+    print("Worker started...")
     db = SessionLocal()
 
     while True:
@@ -75,14 +72,14 @@ def worker():
 
         movie = db.query(Movie).filter(Movie.id == movie_id).first()
         if not movie:
-            print(f"⚠️  movie_id={movie_id} not in DB — skipping")
+            print(f"movie_id={movie_id} not in DB — skipping")
             continue
 
         text   = f"{movie.title} {movie.overview} {movie.genres}"
         weight = EVENT_WEIGHTS.get(event_type, 0.1)
 
         update_user_profile(db, user_id, text, weight)
-        print(f"✅ User {user_id} ← {event_type} '{movie.title}' (w={weight})")
+        print(f"User {user_id} ← {event_type} '{movie.title}' (w={weight})")
 
 
 if __name__ == "__main__":

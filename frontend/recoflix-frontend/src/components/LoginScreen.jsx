@@ -87,9 +87,7 @@ export default function LoginScreen() {
                 <div style={{ fontWeight: 600, fontSize: 16, color: hovered === user.id ? '#fff' : 'var(--muted)' }}>
                   {user.name}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                  {user.preferences.join(' · ')}
-                </div>
+
               </div>
             </button>
           ))}
@@ -101,7 +99,7 @@ export default function LoginScreen() {
           borderRadius: 10, maxWidth: 420, margin: '48px auto 0',
           fontSize: 12, color: 'var(--muted)', lineHeight: 1.7,
         }}>
-          ⚡ Interactions (clicks, plays, watches) are tracked in real-time and sent to the backend to adapt your recommendations dynamically.
+          Interactions (clicks, plays, watches) are tracked in real-time and sent to the backend to adapt your recommendations dynamically.
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@ export default function SearchBar() {
   const inputRef = useRef()
   const containerRef = useRef()
   const debounceRef = useRef()
-
+  const rowRef = useRef(null)
   const setSelectedMovie = useStore(s => s.setSelectedMovie)
   const { track } = useEventTracker()
 
@@ -56,6 +56,10 @@ export default function SearchBar() {
     // Pre-fetch the search index on first focus so subsequent keystrokes are instant
     loadSearchIndex()
     if (query.trim()) runSearch(query)
+  }
+  function scroll(dir) {
+    if (!rowRef.current) return
+    rowRef.current.scrollBy({ left: dir * 500, behavior: 'smooth' })
   }
 
   function handleKeyDown(e) {
@@ -154,6 +158,7 @@ export default function SearchBar() {
             </div>
           ) : (
             <>
+            
               {/* Text suggestion list (title only rows) */}
               {results.slice(0, 4).map((movie, i) => (
                 <div
@@ -198,7 +203,7 @@ export default function SearchBar() {
               )}
 
               {/* Movie card grid — poster + info */}
-              <div style={{
+              <div ref={rowRef} style={{
                 display: 'flex', gap: 10, padding: '6px 16px 16px',
                 overflowX: 'auto', scrollbarWidth: 'none',
               }}>
@@ -211,6 +216,42 @@ export default function SearchBar() {
                     onHover={() => setHighlighted(i)}
                   />
                 ))}
+              </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+                padding: '8px 16px'
+              }}>
+                <button
+                  onClick={() => scroll(-1)}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid var(--border)',
+                    color: '#fff',
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                    fontSize: 14,
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                >←</button>
+
+                <button
+                  onClick={() => scroll(1)}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid var(--border)',
+                    color: '#fff',
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                    fontSize: 14,
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                >→</button>
               </div>
             </>
           )}

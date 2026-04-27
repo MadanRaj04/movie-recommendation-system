@@ -37,7 +37,7 @@ def load_movies():
         if batch:
             insert_batch(db, batch)
 
-    print(f"✅ Total processed: {count}")
+    print(f"Total processed: {count}")
     db.close()
 
 

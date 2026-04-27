@@ -70,7 +70,7 @@ def build_embeddings():
     faiss.write_index(index, OUTPUT_INDEX)
     np.save(OUTPUT_IDS, np.array(ids))
 
-    print("✅ Embeddings + FAISS index saved")
+    print("Embeddings + FAISS index saved")
 
     db.close()
 
